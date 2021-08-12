@@ -18,8 +18,8 @@ typedef enum {
     // backend commands
     SET_POWER,
     GET_CURRENT,
-    GPIO_RD_BACKEND,
-    BACKEND_STATUS
+    GPIO,
+    NOP
 } cmd_t;
 
 // General values
@@ -54,11 +54,11 @@ typedef enum {
 // 15 bits: X, 
 // 1 bit: read only (1) / write+read (0), 
 // 4 bits: power mask }
-#define PWR_UPDATE(cmd)         ((cmd >> 4) & 0x1)
-#define PWR_MASK(cmd)           (cmd & 0xF)
+#define PWR_UPDATE(cmd) ((cmd >> 4) & 0x1)
+#define PWR_MASK(cmd)   (cmd & 0xF)
 
 // payload: { 4 bits: X, 8 bits: offset, 8 bits: mask }
-#define GPIO_OFF(cmd)           ((cmd >> 8) & 0xFF)
-#define GPIO_MASK(cmd)          (cmd & 0xFF)
+#define GPIO_OFF(cmd)   ((cmd >> 8) & 0xFF)
+#define GPIO_MASK(cmd)  (cmd & 0xFF)
 
 #endif

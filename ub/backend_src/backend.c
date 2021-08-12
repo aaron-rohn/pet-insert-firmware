@@ -3,6 +3,8 @@
 #include <xil_io.h>
 #include "custom_command.h"
 #include "custom_iic.h"
+#include "custom_uart.h"
+#include "spi.h"
 
 // Checks the value of the carry bit and puts it in result
 #define fsl_isinvalid(result) asm volatile ("addic\t%0,r0,0"  : "=d" (result))
@@ -14,11 +16,31 @@ int main()
     // Turn on the "fpga" LED
     Xil_Out32(XPAR_GPIO_0_BASEADDR, 0x1 << 1);
 
-    uint32_t cmd = 0;
-    uint32_t cmd_invalid = 0;
+    SPI_RST();
+    Xil_Out32(SPI_BASE + SPI_CR,
+            SPI_CR_EN       |
+            SPI_CR_CPOL     |
+            SPI_CR_CPHA     |
+            SPI_CR_TX_RST   |
+            SPI_CR_RX_RST   |
+            SPI_CR_USE_SSR  |
+            SPI_CR_MTI);
+
+    Xil_Out32(SPI_BASE + SPI_TX, 0xABCDEF01);
 
 	while(1)
 	{
+        uint32_t status = Xil_In32(SPI_BASE + SPI_SR);
+        if (!(status & SPI_SR_RX_EMP))
+        {
+            Xil_Out32(SPI_BASE + SPI_TX, 0xABCDEF01);
+            uint32_t rx_val = Xil_In32(SPI_BASE + SPI_RX);
+            putfslx(rx_val, BACKEND_FSL_PORT, FSL_DEFAULT);
+        }
+
+        /*
+        uint32_t cmd = 0;
+        uint32_t cmd_invalid = 0;
         // check for a command from the ethernet interface
         getfslx(cmd, BACKEND_FSL_PORT, FSL_NONBLOCKING);
         fsl_isinvalid(cmd_invalid);
@@ -31,10 +53,10 @@ int main()
             
             switch (c) {
                 case RST: // only rst board responds
-                case BACKEND_STATUS: // no-op, just checking if alive
+                case NOP: // no-op, just checking if alive
                     break;
 
-                case GPIO_RD_BACKEND:
+                case GPIO:
                     // read up to 8 bits from the gpio
                     value = Xil_In32(XPAR_GPIO_0_BASEADDR + 0x8);
                     value = (value >> GPIO_OFF(cmd)) & GPIO_MASK(cmd);
@@ -82,6 +104,7 @@ int main()
                 putfslx(frontend_value, BACKEND_FSL_PORT, FSL_DEFAULT);
             }
         }
+        */
 	}
 
 	return 0;

@@ -53,7 +53,17 @@ module backend #(
     output wire [7:0] D,    // Tx data to gigex
     output wire nTx,        // Tx data valid to gigex
     output wire [2:0] TC,   // Tx data channel to gigex
-    input  wire [7:0] nTF   // Tx fifo full flag from gigex
+    input  wire [7:0] nTF,  // Tx fifo full flag from gigex
+
+    // low speed ports (slave spi not shown)
+    input wire gigex_uart_rx,
+    output wire gigex_uart_tx,
+
+    // master spi ports
+    input wire gigex_spi_cs,
+    input wire gigex_spi_sck,
+    input wire gigex_spi_mosi,
+    output wire gigex_spi_miso
 );
 
     genvar i, j;
@@ -134,7 +144,6 @@ module backend #(
 
     wire [(CMD_LEN*NMODULES)-1:0] m_ub_cmd_data, ub_m_cmd_data;
     wire [NMODULES-1:0] m_ub_cmd_valid, ub_m_cmd_valid, m_ub_cmd_ready, ub_m_cmd_ready;
-    wire m_ub_interrupt = |m_ub_cmd_valid;
 
     wire [CMD_LEN-1:0] eth_ub_cmd_data, ub_eth_cmd_data;
     wire eth_ub_cmd_valid, ub_eth_cmd_valid, eth_ub_cmd_ready, ub_eth_cmd_ready;
@@ -145,24 +154,29 @@ module backend #(
 
         .gpio_i_tri_i(gpio_i),
         .gpio_o_tri_o(gpio_o),
+
         .iic_rtl_0_scl_io(scl),
         .iic_rtl_0_sda_io(sda),
+
+        .rx(gigex_uart_rx),
+        .tx(gigex_uart_tx),
+
+        .spi_cs(gigex_spi_cs),
+        .spi_sck(gigex_spi_sck),
+        .spi_mosi(gigex_spi_mosi),
+        .spi_miso(gigex_spi_miso),
 
         // commands from GigEx to ublaze
         .eth_in_tdata(eth_ub_cmd_data),
         .eth_in_tlast(0),
         .eth_in_tready(eth_ub_cmd_ready),
         .eth_in_tvalid(eth_ub_cmd_valid),
-        .eth_in_interrupt(eth_ub_cmd_valid),
 
         // commands from ublaze to GigEx
         .eth_out_tdata(ub_eth_cmd_data),
         .eth_out_tlast(),
         .eth_out_tready(ub_eth_cmd_ready),
         .eth_out_tvalid(ub_eth_cmd_valid),
-
-        // ublaze interface with modules
-        .m_in_interrupt(m_ub_interrupt),
 
         // Module 0
         .m0_in_tdata(m_ub_cmd_data[0 +: CMD_LEN]),

@@ -21,6 +21,7 @@ proc build { ws_path src_path inc_path } {
 
     importsources -name ub0 -path $src_path
     configapp -app ub0 compiler-optimization {Optimize more (-O2)}
+    #configapp -app ub0 compiler-misc {-g}
 
     set inc_base [file join $ws_path bsp0/microblaze_0/include]
     foreach inc [list $inc_path $inc_base] {
