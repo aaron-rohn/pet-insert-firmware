@@ -41,4 +41,11 @@
 #define SPI_ISR_SS          (1 << 7)
 #define SPI_ISR_RX_VALID    (1 << 8)
 
+#define SPI_STATUS() Xil_In32(SPI_BASE + SPI_SR)
+#define SPI_RX_VALID() ({ !(SPI_STATUS() & SPI_SR_RX_EMP); })
+#define SPI_READ() Xil_In32(SPI_BASE + SPI_RX)
+#define SPI_WRITE(val) Xil_Out32(SPI_BASE + SPI_TX, val)
+#define SPI_TX_RST() ({ uint32_t cr = Xil_In32(SPI_BASE + SPI_CR);\
+                        Xil_Out32(SPI_BASE + SPI_CR, cr | SPI_CR_TX_RST); })
+
 #endif

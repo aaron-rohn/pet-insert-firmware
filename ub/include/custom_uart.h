@@ -32,8 +32,4 @@
 #define UART_TX_RST()       Xil_Out32(UART_BASE + UART_CTRL, UART_CTRL_TX_RST)
 #define UART_TX_WAIT()      ({ while (!UART_TX_EMPTY()) ; })
 
-int uart_send_multi(const char*);
-int uart_write_bytes(const char*);
-int uart_recv_bytes(uint32_t*);
-
 #endif

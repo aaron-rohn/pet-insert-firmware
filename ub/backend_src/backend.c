@@ -4,7 +4,7 @@
 #include "custom_command.h"
 #include "custom_iic.h"
 #include "custom_uart.h"
-#include "spi.h"
+#include "custom_spi.h"
 
 // Checks the value of the carry bit and puts it in result
 #define fsl_isinvalid(result) asm volatile ("addic\t%0,r0,0"  : "=d" (result))
@@ -26,27 +26,21 @@ int main()
             SPI_CR_USE_SSR  |
             SPI_CR_MTI);
 
-    Xil_Out32(SPI_BASE + SPI_TX, 0xABCDEF01);
+    uint32_t cmd = 0;
+    uint32_t cmd_valid = 0;
 
 	while(1)
 	{
-        uint32_t status = Xil_In32(SPI_BASE + SPI_SR);
-        if (!(status & SPI_SR_RX_EMP))
+        cmd_valid = 0;
+        if (SPI_RX_VALID())
         {
-            Xil_Out32(SPI_BASE + SPI_TX, 0xABCDEF01);
-            uint32_t rx_val = Xil_In32(SPI_BASE + SPI_RX);
-            putfslx(rx_val, BACKEND_FSL_PORT, FSL_DEFAULT);
+            cmd = SPI_READ();
+            cmd_valid = (cmd >> 28 == 0xF);
         }
 
-        /*
-        uint32_t cmd = 0;
-        uint32_t cmd_invalid = 0;
-        // check for a command from the ethernet interface
-        getfslx(cmd, BACKEND_FSL_PORT, FSL_NONBLOCKING);
-        fsl_isinvalid(cmd_invalid);
-
-        if (!cmd_invalid)
+        if (cmd_valid)
 		{
+            SPI_TX_RST();
             uint32_t value;
             cmd_t    c = CMD_COMMAND(cmd);
             uint32_t m = CMD_MODULE(cmd);
@@ -90,7 +84,7 @@ int main()
                     break;
             }
             // always provide an immediate response to the caller
-            putfslx(cmd, BACKEND_FSL_PORT, FSL_DEFAULT);
+            SPI_WRITE(cmd);
 		}
 
         volatile uint32_t frontend_value, frontend_invalid;
@@ -101,10 +95,9 @@ int main()
             fsl_isinvalid(frontend_invalid);
             if (!frontend_invalid)
             {
-                putfslx(frontend_value, BACKEND_FSL_PORT, FSL_DEFAULT);
+                SPI_WRITE(frontend_value);
             }
         }
-        */
 	}
 
 	return 0;
