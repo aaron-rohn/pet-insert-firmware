@@ -1,6 +1,15 @@
 #ifndef _CUSTOM_COMMAND_H_
 #define _CUSTOM_COMMAND_H_
 
+#include <xparameters.h>
+#define GPIO_SET_FPGA_LED() Xil_Out32(XPAR_GPIO_0_BASEADDR, 0x1 << 1);
+// read gpio output bank
+#define GPIO_RD_O()     Xil_In32(XPAR_GPIO_0_BASEADDR)
+// write gpio output bank
+#define GPIO_WR_O(val)  Xil_Out32(XPAR_GPIO_0_BASEADDR, val);
+// read gpio input bank
+#define GPIO_RD_I()     Xil_In32(XPAR_GPIO_0_BASEADDR + 0x8)
+
 /*
  * Command structure: 32 bits
  *
@@ -30,6 +39,7 @@ typedef enum {
 #define CMD_MODULE_LOWER(cmd)   ((cmd >> 24) & 0x3) // lowest 2 bits, indicating the backend port
 #define CMD_PAYLOAD(cmd)        (cmd & 0xFFFFF)
 #define CMD_BUILD(m,c,p)        ( CMD_EMPTY | ((m & 0xF) << 24) | ((c & 0xF) << 20) | (p & 0xFFFFF) )
+#define CMD_SET_PAYLOAD(cmd,pld) ({ cmd &= ~0xFFFFF; cmd |= (pld & 0xFFFFF); })
 
 // DAC values
 

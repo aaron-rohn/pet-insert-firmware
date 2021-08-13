@@ -48,4 +48,12 @@
 #define SPI_TX_RST() ({ uint32_t cr = Xil_In32(SPI_BASE + SPI_CR);\
                         Xil_Out32(SPI_BASE + SPI_CR, cr | SPI_CR_TX_RST); })
 
+#define SPI_INIT() Xil_Out32(SPI_BASE + SPI_CR,\
+                             SPI_CR_EN       |\
+                             SPI_CR_CPOL     |\
+                             SPI_CR_CPHA     |\
+                             SPI_CR_TX_RST   |\
+                             SPI_CR_RX_RST   |\
+                             SPI_CR_USE_SSR  |\
+                             SPI_CR_MTI);
 #endif
