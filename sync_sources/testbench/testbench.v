@@ -22,30 +22,6 @@ module testbench();
 
     initial begin
         #10000
-
-        @ (posedge eth_clk) begin
-            data_valid <= 1;
-            data <= 8'hF0;
-        end
-
-        @ (posedge eth_clk) begin
-            data_valid <= 1;
-            data <= 8'h00;
-        end
-
-        @ (posedge eth_clk) begin
-            data_valid <= 1;
-        end
-
-        @ (posedge eth_clk) begin
-            data_valid <= 1;
-        end
-
-        @ (posedge eth_clk) begin
-            data_valid <= 0;
-        end
-
-        #10000
         $stop;
     end
 endmodule
