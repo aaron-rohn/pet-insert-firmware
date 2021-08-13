@@ -45,19 +45,15 @@ module backend #(
     
     output wire user_hs_clk,
     
-    input  wire [7:0] Q,    // Rx data from gigex
-    input  wire nRx,        // Rx data valid from gigex, active low
-    input  wire [2:0] RC,   // Rx data channel from gigex
-    output wire [7:0] nRF,  // Rx fifo full flag to gigex, active low
+    input  wire [7:0] Q,        // Rx data from gigex
+    input  wire nRx,            // Rx data valid from gigex, active low
+    input  wire [2:0] RC,       // Rx data channel from gigex
+    output reg [7:0] nRF = 0,   // Rx fifo full flag to gigex, active low
             
-    output wire [7:0] D,    // Tx data to gigex
-    output wire nTx,        // Tx data valid to gigex
-    output wire [2:0] TC,   // Tx data channel to gigex
-    input  wire [7:0] nTF,  // Tx fifo full flag from gigex
-
-    // low speed ports (slave spi not shown)
-    input wire gigex_uart_rx,
-    output wire gigex_uart_tx,
+    output wire [7:0] D,        // Tx data to gigex
+    output wire nTx,            // Tx data valid to gigex
+    output wire [2:0] TC,       // Tx data channel to gigex
+    input  wire [7:0] nTF,      // Tx fifo full flag from gigex
 
     // master spi ports
     input wire gigex_spi_cs,
@@ -74,17 +70,23 @@ module backend #(
 
     assign config_spi_ncs = 1;
     
-    wire clk_100, eth_clk, sys_rst_ddr, sys_rst;
-    assign eth_clk = clk_100;
-
+    // System clock and reset
+    wire clk_100, sys_rst_ddr, sys_rst;
     IBUFGDS sys_clk_inst (.I(sys_clk_p), .IB(sys_clk_n), .O(clk_100));
     IBUFDS sys_rst_inst (.I(sys_rst_p), .IB(sys_rst_n), .O(sys_rst_ddr));
     IDDR #(.DDR_CLK_EDGE("SAME_EDGE")) sys_rst_iddr_inst (
         .Q1(), .Q2(sys_rst), .D(sys_rst_ddr), .C(clk_100), .CE(1), .S(), .R(0));
 
+    // Generate 125MHz ethernet clock from system clock
+    wire eth_clk, eth_clk_fb;
+    PLLE2_BASE #(.CLKFBOUT_MULT(10), .CLKOUT0_DIVIDE(8), .CLKIN1_PERIOD(10)) eth_clk_inst (
+        .CLKIN1(clk_100), .CLKOUT0(eth_clk),
+        .CLKFBIN(eth_clk_fb), .CLKFBOUT(eth_clk_fb),
+        .RST(1'b0), .LOCKED());
+
+    // Input and output connections to frontend modules
     wire [NMODULES-1:0] m_clk_ddr, m_ctrl_ddr, m_ctrl, m_data_clk;
     wire [LINES*NMODULES-1:0] m_data_in, m_data_in_ddr;
-
     generate
         for (i = 0; i < NMODULES; i = i + 1) begin: frontend_port_inst
             // Clock output to frontend
@@ -145,9 +147,6 @@ module backend #(
     wire [(CMD_LEN*NMODULES)-1:0] m_ub_cmd_data, ub_m_cmd_data;
     wire [NMODULES-1:0] m_ub_cmd_valid, ub_m_cmd_valid, m_ub_cmd_ready, ub_m_cmd_ready;
 
-    wire [CMD_LEN-1:0] eth_ub_cmd_data, ub_eth_cmd_data;
-    wire eth_ub_cmd_valid, ub_eth_cmd_valid, eth_ub_cmd_ready, ub_eth_cmd_ready;
-    
     low_speed_interface_wrapper low_speed_inst (
         .clk(clk_100),
         .rst(0),
@@ -158,44 +157,29 @@ module backend #(
         .iic_rtl_0_scl_io(scl),
         .iic_rtl_0_sda_io(sda),
 
-        .rx(gigex_uart_rx),
-        .tx(gigex_uart_tx),
-
         .spi_cs(gigex_spi_cs),
         .spi_sck(gigex_spi_sck),
         .spi_mosi(gigex_spi_mosi),
         .spi_miso(gigex_spi_miso),
 
-        // commands from GigEx to ublaze
-        .eth_in_tdata(eth_ub_cmd_data),
-        .eth_in_tlast(0),
-        .eth_in_tready(eth_ub_cmd_ready),
-        .eth_in_tvalid(eth_ub_cmd_valid),
-
-        // commands from ublaze to GigEx
-        .eth_out_tdata(ub_eth_cmd_data),
-        .eth_out_tlast(),
-        .eth_out_tready(ub_eth_cmd_ready),
-        .eth_out_tvalid(ub_eth_cmd_valid),
-
         // Module 0
-        .m0_in_tdata(m_ub_cmd_data[0 +: CMD_LEN]),
+        .m0_in_tdata(m_ub_cmd_data[0*CMD_LEN +: CMD_LEN]),
         .m0_in_tlast(0),
         .m0_in_tready(m_ub_cmd_ready[0]),
         .m0_in_tvalid(m_ub_cmd_valid[0]),
 
-        .m0_out_tdata(ub_m_cmd_data[0 +: CMD_LEN]),
+        .m0_out_tdata(ub_m_cmd_data[0*CMD_LEN +: CMD_LEN]),
         .m0_out_tlast(),
         .m0_out_tready(ub_m_cmd_ready[0]),
         .m0_out_tvalid(ub_m_cmd_valid[0]),
 
         // Module 1
-        .m1_in_tdata(m_ub_cmd_data[CMD_LEN +: CMD_LEN]),
+        .m1_in_tdata(m_ub_cmd_data[1*CMD_LEN +: CMD_LEN]),
         .m1_in_tlast(0),
         .m1_in_tready(m_ub_cmd_ready[1]),
         .m1_in_tvalid(m_ub_cmd_valid[1]),
 
-        .m1_out_tdata(ub_m_cmd_data[CMD_LEN +: CMD_LEN]),
+        .m1_out_tdata(ub_m_cmd_data[1*CMD_LEN +: CMD_LEN]),
         .m1_out_tlast(),
         .m1_out_tready(ub_m_cmd_ready[1]),
         .m1_out_tvalid(ub_m_cmd_valid[1]),
@@ -228,8 +212,8 @@ module backend #(
     * Reset controller and TX controller
     */
 
-    localparam CODE_LEN = 4, RST_CODE = 4'b1100;
-    reg [CODE_LEN-1:0] sys_rst_reg = 0;
+    localparam RST_CODE = 4'b1100;
+    reg [3:0] sys_rst_reg = 0;
     wire sys_rst_valid = (sys_rst_reg == RST_CODE);
     always @ (posedge clk_100) sys_rst_reg <= {sys_rst_reg, sys_rst};
 
@@ -372,11 +356,10 @@ module backend #(
     end
 
     /*
-    * Ethernet tx/rx controllers and interface fifos
+    * Ethernet tx interface
     */
 
     // singles data fifo to gigex 
-    
     wire m_data_mux_valid = (|m_data_valid);
     wire rx_fifo_ready, rx_fifo_empty;
     wire [LENGTH-1:0] rx_fifo_data;
@@ -398,34 +381,9 @@ module backend #(
         .rd_clk(~eth_clk)
     );
 
-    // command data fifo from uBlaze
-
-    wire [CMD_LEN-1:0] cmd_fifo_eth_tx_data;
-    wire cmd_fifo_eth_tx_nvalid, cmd_fifo_eth_tx_ready;
-    wire cmd_fifo_eth_tx_valid = ~cmd_fifo_eth_tx_nvalid;
-
-    wire cmd_fifo_eth_tx_full;
-    assign ub_eth_cmd_ready = ~cmd_fifo_eth_tx_full;
-    
-    xpm_fifo_async #(
-        .READ_MODE("fwft"),
-        .FIFO_READ_LATENCY(0)
-    ) ublaze_eth_tx_fifo_inst (
-        .full(cmd_fifo_eth_tx_full),
-        .din(ub_eth_cmd_data),
-        .wr_en(ub_eth_cmd_valid & ub_eth_cmd_ready),
-        .wr_clk(clk_100),
-    
-        .empty(cmd_fifo_eth_tx_nvalid),
-        .dout(cmd_fifo_eth_tx_data),
-        .rd_en(cmd_fifo_eth_tx_valid & cmd_fifo_eth_tx_ready),
-        .rd_clk(~eth_clk)
-    );
-
     // GigEx control signals
     wire byte_out_valid;
     assign nTx = ~byte_out_valid;
-    assign nRF = {6'b0, 2'b11};
     assign user_hs_clk = eth_clk;
 
     // ethernet tx controller
@@ -433,56 +391,13 @@ module backend #(
         .clk(eth_clk),
         .channel_full(~nTF),
 
-        .ctrl_data(cmd_fifo_eth_tx_data),
-        .ctrl_data_valid(cmd_fifo_eth_tx_valid),
-        .ctrl_data_ready(cmd_fifo_eth_tx_ready),
-
-        .hs_data_valid(~rx_fifo_empty),
-        .hs_data_ready(rx_fifo_ready),
-        .hs_data(rx_fifo_data),
+        .valid(~rx_fifo_empty),
+        .ready(rx_fifo_ready),
+        .data(rx_fifo_data),
 
         .byte_out(D),
         .byte_out_valid(byte_out_valid),
         .channel(TC)
-    );
-
-    // command data fifo to ublaze
-
-    wire [CMD_LEN-1:0] eth_rx_cmd_fifo_data;
-    wire eth_rx_cmd_fifo_valid, eth_rx_cmd_fifo_nready;
-    wire eth_rx_cmd_fifo_ready = ~eth_rx_cmd_fifo_nready;
-
-    wire eth_ub_cmd_nvalid;
-    assign eth_ub_cmd_valid = ~eth_ub_cmd_nvalid;
-
-    xpm_fifo_async #(
-        .READ_MODE("fwft"),
-        .FIFO_READ_LATENCY(0)
-    ) eth_rx_ublaze_fifo_inst (
-        // gigex interface side
-        .full(eth_rx_cmd_fifo_nready),
-        .din(eth_rx_cmd_fifo_data),
-        .wr_en(eth_rx_cmd_fifo_valid & eth_rx_cmd_fifo_ready),
-        .wr_clk(~eth_clk),
-    
-        // ublaze interface side
-        .empty(eth_ub_cmd_nvalid),
-        .dout(eth_ub_cmd_data),
-        .rd_en(eth_ub_cmd_valid & eth_ub_cmd_ready),
-        .rd_clk(clk_100)
-    );
-
-    // ethernet rx controller
-    ethernet_rx_controller eth_rx (
-        .clk(eth_clk),
-
-        .data(Q),
-        .data_good(~nRx),
-        .channel(RC),
-
-        .data_out(eth_rx_cmd_fifo_data),
-        .data_out_valid(eth_rx_cmd_fifo_valid),
-        .data_out_ready(eth_rx_cmd_fifo_ready)
     );
 
 endmodule

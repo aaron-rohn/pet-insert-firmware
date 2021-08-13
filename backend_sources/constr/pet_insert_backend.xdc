@@ -164,9 +164,6 @@ set_property -dict {IOSTANDARD LVCMOS25 PACKAGE_PIN M1} [get_ports {nTF[5]}]
 set_property -dict {IOSTANDARD LVCMOS25 PACKAGE_PIN M4} [get_ports {nTF[6]}]
 set_property -dict {IOSTANDARD LVCMOS25 PACKAGE_PIN R3} [get_ports {nTF[7]}]
 
-# Low speed GigEx interface ports
-set_property -dict {IOSTANDARD LVCMOS25 PACKAGE_PIN A4} [get_ports {gigex_uart_tx}]
-set_property -dict {IOSTANDARD LVCMOS25 PACKAGE_PIN B5} [get_ports {gigex_uart_rx}]
 # Master SPI GigEx interface ports
 set_property -dict {IOSTANDARD LVCMOS25 PACKAGE_PIN C3} [get_ports {gigex_spi_cs}]
 set_property -dict {IOSTANDARD LVCMOS25 PACKAGE_PIN B1} [get_ports {gigex_spi_sck}]

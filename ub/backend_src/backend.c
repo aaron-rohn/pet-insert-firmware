@@ -8,15 +8,12 @@
 
 // Checks the value of the carry bit and puts it in result
 #define fsl_isinvalid(result) asm volatile ("addic\t%0,r0,0"  : "=d" (result))
-#define BACKEND_FSL_PORT        0
-#define FRONTEND_FSL_PORT       1
+#define FRONTEND_FSL_PORT       0
 
 int main()
 {
-    // Turn on the "fpga" LED
+    // Set the "fpga" LED
     Xil_Out32(XPAR_GPIO_0_BASEADDR, 0x1 << 1);
-
-    SPI_RST();
     Xil_Out32(SPI_BASE + SPI_CR,
             SPI_CR_EN       |
             SPI_CR_CPOL     |
@@ -79,16 +76,17 @@ int main()
 
                 default:
                     // forward the command to the indicated module
-                    value = FRONTEND_FSL_PORT + CMD_MODULE_LOWER(cmd);
+                    value = CMD_MODULE_LOWER(cmd);
                     putdfslx(cmd, value, FSL_DEFAULT);
                     break;
             }
+
             // always provide an immediate response to the caller
             SPI_WRITE(cmd);
 		}
 
         volatile uint32_t frontend_value, frontend_invalid;
-        for (uint32_t i = FRONTEND_FSL_PORT; i < XPAR_MICROBLAZE_0_FSL_LINKS; i++)
+        for (uint32_t i = 0; i < XPAR_MICROBLAZE_0_FSL_LINKS; i++)
         {
             frontend_invalid = 1;
             getdfslx(frontend_value, i, FSL_NONBLOCKING);
