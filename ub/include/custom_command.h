@@ -34,6 +34,7 @@ typedef enum {
 // General values
 
 #define CMD_EMPTY 			 	0xF0000000
+#define IS_CMD(cmd)             ((cmd >> 28) == 0xF)
 #define CMD_COMMAND(cmd)        ((cmd >> 20) & 0xF)
 #define CMD_MODULE(cmd)         ((cmd >> 24) & 0xF) // full 4 bit module, 0-15
 #define CMD_MODULE_LOWER(cmd)   ((cmd >> 24) & 0x3) // lowest 2 bits, indicating the backend port

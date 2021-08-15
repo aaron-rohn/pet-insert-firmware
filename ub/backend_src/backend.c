@@ -18,14 +18,15 @@ int main()
         if (SPI_RX_VALID())
         {
             cmd = SPI_READ();
-            cmd_valid = (cmd >> 28 == 0xF);
+            cmd_valid = IS_CMD(cmd);
+            SPI_TX_RST();
         }
 
         if (cmd_valid)
 		{
-            SPI_TX_RST();
-            
-            switch (CMD_COMMAND(cmd)) {
+            cmd_t c = CMD_COMMAND(cmd);
+
+            switch (c) {
                 case RST: // only rst board responds
                 case NOP: // no-op, just checking if alive
                     SPI_WRITE(cmd);
