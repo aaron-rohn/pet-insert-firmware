@@ -19,7 +19,7 @@ module timer #(
         .WIDTH_MULTIPLIER(COUNTER-1),
         .WIDTH_PREADD(2),
         .WIDTH_PRODUCT(COUNTER+1),
-        .LATENCY(1)
+        .LATENCY(2)
     ) counter_inst (
         .LOAD(rst), .LOAD_DATA(0),
         .MULTIPLIER( {{(COUNTER-2){1'b0}}, 1'b1} ), .PREADD1(2'sd1), .PREADD2(2'sd0),
@@ -27,7 +27,7 @@ module timer #(
         .PRODUCT({carry, counter_a})
     );
     
-    ADDMACC_MACRO #(.LATENCY(1)) period_inst (
+    ADDMACC_MACRO #(.LATENCY(2)) period_inst (
         .LOAD(rst), .LOAD_DATA(0),
         .MULTIPLIER(18'sd1), .PREADD1(24'sd1), .PREADD2(24'sd0),
         .RST(0), .CE(period_done_a), .CLK(clk), .CARRYIN(0),

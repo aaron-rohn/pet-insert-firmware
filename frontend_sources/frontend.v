@@ -44,21 +44,21 @@ module frontend #(
     */
 
     assign config_spi_ncs = 1;
-    wire sys_clk, sys_ctrl_ddr, sys_ctrl, sys_rst, clk_frontend, data_clk_ddr;
+    wire sys_clk, sys_ctrl_ddr, sys_ctrl, sys_rst, data_clk_ddr;
 
     // System clock input
     IBUFGDS sys_clk_inst  (.I(sys_clk_p), .IB(sys_clk_n), .O(sys_clk));
 
-    // Generate frontend clock, 3.3ns period, 1.66 ns DDR
-    wire clk_frontend_fb;
-    PLLE2_BASE #(.CLKFBOUT_MULT(12), .CLKOUT0_DIVIDE(6), .CLKIN1_PERIOD(10)) clk_frontend_inst (
-        .CLKIN1(sys_clk), .CLKOUT0(clk_frontend),
+    // Generate frontend clock
+    wire clk_frontend, clk_frontend_fb, clk_frontend_out;
+    PLLE2_BASE #(.CLKFBOUT_MULT(12), .CLKOUT0_DIVIDE(3), .CLKIN1_PERIOD(10)) clk_frontend_inst (
+        .CLKIN1(sys_clk), .CLKOUT0(clk_frontend_out),
         .CLKFBIN(clk_frontend_fb), .CLKFBOUT(clk_frontend_fb),
         .RST(1'b0), .LOCKED()
     );
+    IBUFG clk_frontend_buf_inst (.I(clk_frontend_out), .O(clk_frontend));
     
     // Control data input
-
     IBUFDS  sys_ctrl_inst (.I(sys_ctrl_p), .IB(sys_ctrl_n), .O(sys_ctrl_ddr));
     IDDR #(.DDR_CLK_EDGE("SAME_EDGE")) sys_ctrl_iddr_inst (
         .Q1(), .Q2(sys_ctrl), 
@@ -68,12 +68,10 @@ module frontend #(
     );
 
     // High speed data clock output
-
     ODDR data_clk_oddr (.D1(1'b1), .D2(1'b0), .CE(1'b1), .C(sys_clk), .S(), .R(1'b0), .Q(data_clk_ddr));
     OBUFDS data_clk_obuf (.I(data_clk_ddr), .O(data_clk_p), .OB(data_clk_n));
 
     // High speed data output
-
     wire [LINES-1:0] data_out, data_ddr_out;
     genvar i;
     generate for (i = 0; i < LINES; i = i + 1) begin: data_inst_gen
@@ -86,8 +84,8 @@ module frontend #(
         OBUFDS data_inst (.I(data_ddr_out[i]), .O(data_p[i]), .OB(data_n[i]));
     end endgenerate
 
+    /*
     // DDR inputs from frontend detectors
- 
     wire [NCHAN_TOTAL - 1:0] block1_rising, block1_falling;
     wire [NCHAN_TOTAL - 1:0] block2_rising, block2_falling;
     wire [NCHAN_TOTAL - 1:0] block3_rising, block3_falling;
@@ -115,6 +113,7 @@ module frontend #(
             .D(block4[j]), .Q1(block4_rising[j]), .Q2(block4_falling[j])
         );
     end endgenerate
+    */
 
     // END IO instantiation
     
@@ -161,7 +160,6 @@ module frontend #(
         .rxd_tlast(0),
         .rxd_tready(cmd_ready_in),
         .rxd_tvalid(cmd_valid_in),
-        .rxd_interrupt(cmd_valid_in),
 
         .txd_tdata(cmd_data_out),
         .txd_tlast(),
@@ -179,8 +177,7 @@ module frontend #(
 
     reg [3:0] select_rolling;
     wire [3:0] earlier, select;
-    wire [4:0] ready;
-    wire [4:0] valid;
+    wire [4:0] ready, valid;
     wire [DATA_WIDTH-1:0] data [4:0];
     wire [47:0] period [4:0];
 
@@ -209,8 +206,8 @@ module frontend #(
     assign ready[TT]  = ~(|select);
 
     generate for (i = 0; i < 4; i = i + 1) begin: block_mux
-        // Does an event preceeds the most recent time tag?
-        assign earlier[i] = period[i] < period[TT];
+        // Does an event preceed the most recent time tag?
+        assign earlier[i] = !(period[i] > period[TT]);
 
         // Does a block contain a valid event, and if there is a time tag
         // waiting does the event preceed it?
@@ -227,24 +224,24 @@ module frontend #(
     wire fifo_mux_valid = ~fifo_mux_empty;
     wire [DATA_WIDTH-1:0] fifo_mux_data;
     
-    xpm_fifo_async #(
+    xpm_fifo_sync #(
         .READ_MODE("fwft"),
         .FIFO_READ_LATENCY(0),
         .WRITE_DATA_WIDTH(128),
         .READ_DATA_WIDTH(128)
     ) fifo_mux_inst (
-        .full(),
+        .full(), .sleep(0), .rst(0),
         .din(block_data),
         .wr_en(block_valid),
         .wr_clk(sys_clk),
     
         .empty(fifo_mux_empty),
         .dout(fifo_mux_data),
-        .rd_en(fifo_mux_valid & fifo_mux_ready),
-        .rd_clk(sys_clk)
+        .rd_en(fifo_mux_valid & fifo_mux_ready)
     );
 
     // Multiplex data from detectors and commands from ublaze
+    // commands have priority
     wire tx_data_ready, tx_data_valid;
     wire [DATA_WIDTH-1:0] tx_data_out;
 
@@ -259,10 +256,10 @@ module frontend #(
         cmd_data_out        // Command data     32
     };
 
-    assign fifo_mux_ready = tx_data_ready;
-    assign cmd_ready_out  = tx_data_ready & ~fifo_mux_valid;
+    assign fifo_mux_ready = tx_data_ready & ~cmd_valid_out;
+    assign cmd_ready_out  = tx_data_ready;
     assign tx_data_valid  = fifo_mux_valid | cmd_valid_out;
-    assign tx_data_out    = fifo_mux_valid ? fifo_mux_data : cmd_data_out_packet;
+    assign tx_data_out    = cmd_valid_out ? cmd_data_out_packet : fifo_mux_data;
 
     data_tx high_speed_tx (
         .clk(sys_clk),
@@ -270,7 +267,6 @@ module frontend #(
         .valid(tx_data_valid),
         .ready(tx_data_ready),
         .data_in(tx_data_out),
-        .tx_err(),
         .d(data_out)
     );
 
@@ -280,7 +276,8 @@ module frontend #(
     
     wire [3:0] stall;
 
-    time_counter time_tag_isnt (
+    /*
+    time_counter time_tag_inst (
         .clk_frontend(clk_frontend),
         .clk_backend(sys_clk),
         .rst(sys_rst),
@@ -291,7 +288,35 @@ module frontend #(
         .tt_ready(ready[4]),
         .tt(data[4])
     );
+    */
 
+    localparam counter_width = 13;
+
+    time_counter_iserdes #(.COUNTER(counter_width)) time_tag_inst (
+        .clk(sys_clk), .rst(sys_rst), .module_id(module_id), .stall(|stall),
+        .valid(valid[4]), .ready(ready[4]), .tt(data[4])
+    );
+
+    wire [NCHAN_TOTAL*4-1:0] blocks = {block1, block2, block3, block4};
+    generate for (i = 0; i < 4; i = i + 1) begin
+        wire [NCHAN_TOTAL-1:0] blk = blocks[i*NCHAN_TOTAL +: NCHAN_TOTAL];
+        wire [1:0] blk_idx = i;
+        detector_iserdes #(.COUNTER(counter_width)) det_inst (
+            .sample_clk(clk_frontend),
+            .clk(sys_clk),
+            .rst(sys_rst),
+            .signal(blk),
+            .block_id({module_id, blk_idx}),
+            .stall(stall[i]),
+
+            .data_ready(ready[i]),
+            .data_valid(valid[i]),
+            .data_out(data[i]),
+            .period_out(period[i])
+        );
+    end endgenerate
+
+    /*
     // Implement the four frontend readout blocks
 
     detector_front_end block1_inst (
@@ -353,5 +378,6 @@ module frontend #(
         .data_out(data[3]),
         .period_out(period[3])
     );
+    */
 
 endmodule

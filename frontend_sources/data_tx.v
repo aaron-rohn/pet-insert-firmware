@@ -9,7 +9,6 @@ module data_tx #( LENGTH = 128, LINES = 3 ) (
     input wire [LENGTH-1:0] data_in,
 
     output wire idle,
-    output reg tx_err = 0,
     output wire [LINES - 1:0] d
 );
 

@@ -20,9 +20,11 @@ module time_counter #(
     input wire tt_ready,
     output wire [DATA_BITS - 1:0] tt
 );
+    reg rst_r = 0;
+
     localparam PADDING_BITS = DATA_BITS - (CRC_BITS + MODULE_ID_BITS + PERIOD_BITS + 4);
     wire [PERIOD_BITS-1:0] period;
-    wire [PERIOD_BITS-1:0] period_rst = rst ? 48'h0 : period;
+    wire [PERIOD_BITS-1:0] period_rst = rst_r ? 48'h0 : period;
 
     wire [DATA_BITS - 1:0] tt_in = {
         {CRC_BITS{1'b1}},       // Framing bits         5
@@ -38,7 +40,7 @@ module time_counter #(
     wire tt_fifo_empty;
     assign tt_valid = ~tt_fifo_empty;
 
-    timer timer_inst (.clk(clk_frontend), .rst(rst), .counter(), .period(period), .period_done(tt_finished));
+    timer timer_inst (.clk(clk_frontend), .rst(rst_r), .counter(), .period(period), .period_done(tt_finished));
 
     /*
     * Time tags will be emitted at the start of each period, after events from
@@ -51,14 +53,15 @@ module time_counter #(
 
     always @ (posedge clk_frontend) begin
 
-        rst_p           <= rst;
-        rst_rising      <= rst & ~rst_p;
+        rst_r           <= rst;
+        rst_p           <= rst_r;
+        rst_rising      <= rst_r & ~rst_p;
 
         // This signal goes high with tt_finished and stays high with stall
         write_waiting_p <= write_waiting;
         write_waiting   <= (write_waiting & tt_stall) | tt_finished;
         tt_fifo_write   <= (write_waiting_p & ~write_waiting);
-        tt_in_latch     <= (tt_finished | rst) ? tt_in : tt_in_latch;
+        tt_in_latch     <= (tt_finished | rst_r) ? tt_in : tt_in_latch;
     end
     
     xpm_fifo_async #(

@@ -20,7 +20,6 @@ module detector_front_end #(
     output wire [DATA_BITS - 1:0] data_out,
     output wire [47:0] period_out
 );
-
     // Pipeline the inputs to ease timing
     reg [NCHAN_TOTAL-1:0] signal_rising_r = 0, signal_falling_r = 0;
     always @ (posedge clk_frontend) begin
@@ -52,7 +51,7 @@ module detector_front_end #(
     wire [NCHAN_ENERGY - 1:0] active;
     wire [47:0] start_period;
 
-    /* Fanout and placement of these seems to cause issues, so force pipelining */
+    // Fanout and placement of these seems to cause issues, so force pipelining
     (* dont_touch = "true" *) reg done_data = 0, done_period = 0;
     always @ (posedge clk_frontend) begin
         done_data <= done;

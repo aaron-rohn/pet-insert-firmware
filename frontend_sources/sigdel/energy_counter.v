@@ -26,7 +26,7 @@ module energy_counter (
         .WIDTH_MULTIPLIER(10),
         .WIDTH_PREADD(2),
         .WIDTH_PRODUCT(12),
-        .LATENCY(1)
+        .LATENCY(2)
     ) accum_inst (
         .LOAD(rst_cnt), .LOAD_DATA(0),
         .MULTIPLIER(10'd1), .PREADD1({1'b0, signal_rising}), .PREADD2({1'b0, signal_falling}),

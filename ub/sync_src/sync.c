@@ -16,14 +16,15 @@ int main()
         if (SPI_RX_VALID())
         {
             cmd = SPI_READ();
-            cmd_valid = (cmd >> 28 == 0xF);
+            cmd_valid = IS_CMD(cmd);
+            SPI_TX_RST();
         }
 
         if (cmd_valid)
 		{
-            SPI_TX_RST();
-            
-            switch (CMD_COMMAND(cmd)) {
+            cmd_t c = CMD_COMMAND(cmd);
+
+            switch (c) {
                 case RST:
                     // set the reset bit
                     value = GPIO_RD_O();
@@ -41,7 +42,8 @@ int main()
                     break;
 
                 default:
-                    SPI_WRITE(CMD_EMPTY);
+                    SPI_WRITE(cmd);
+                    break;
             }
         }
     }

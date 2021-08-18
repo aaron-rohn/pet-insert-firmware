@@ -63,18 +63,18 @@ module frontend_sim();
     end
     
     initial begin
-        #200_000 
+        #90_000
           
         block1_in <= {10{1'b1}};
         block2_in <= {10{1'b1}};
         block3_in <= {10{1'b1}};
         block4_in <= {10{1'b1}};
-        #1000
+        #5000
         block1_in <= 0;
         block2_in <= 0;
         block3_in <= 0;
         block4_in <= 0;
-        #1_556_500 // 1.6ms
+        #50_000
         
         block1_in <= {10{1'b1}};
         block2_in <= {10{1'b1}};
@@ -85,7 +85,7 @@ module frontend_sim();
         block2_in <= 0;
         block3_in <= 0;
         block4_in <= 0;
-        #200_000
+        #50_000
         
         block1_in <= {10{1'b1}};
         block2_in <= {10{1'b1}};
@@ -96,7 +96,7 @@ module frontend_sim();
         block2_in <= 0;
         block3_in <= 0;
         block4_in <= 0;
-        #200_000
+        #50_000
         
         $stop;
     end
