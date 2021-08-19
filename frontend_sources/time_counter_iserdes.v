@@ -13,13 +13,14 @@ module time_counter_iserdes #(
 
     output wire valid,
     input wire ready,
-    output reg [DATA_BITS - 1:0] tt = 0
-);
-    reg rst_r = 0;
+    output reg [DATA_BITS - 1:0] tt = 0,
 
+    output wire [16:0] counter,
+    output wire [47:0] period,
+    output wire period_done
+);
     localparam PADDING_BITS = DATA_BITS - (CRC_BITS + MODULE_ID_BITS + PERIOD_BITS + 4);
-    wire [PERIOD_BITS-1:0] period;
-    wire [PERIOD_BITS-1:0] period_rst = rst_r ? 48'h0 : period;
+    wire [PERIOD_BITS-1:0] period_rst = rst ? 48'h0 : period;
 
     wire [DATA_BITS - 1:0] tt_in = {
         {CRC_BITS{1'b1}},       // Framing bits         5
@@ -31,12 +32,10 @@ module time_counter_iserdes #(
         period_rst              // Time tag counter     48
     };
 
-    wire tt_finished;
-
     timer #(.COUNTER(COUNTER)) timer_inst (
-        .clk(clk), .rst(rst_r),
-        .counter(), .period(period),
-        .period_done(tt_finished)
+        .clk(clk), .rst(rst),
+        .counter(counter), .period(period),
+        .period_done(period_done)
     );
 
     /*
@@ -45,19 +44,11 @@ module time_counter_iserdes #(
     */
 
     reg tt_wait = 0;
-    reg rst_rising = 0, rst_p = 0;
-
     assign valid = tt_wait & ~stall;
 
     always @ (posedge clk) begin
-
-        rst_r           <= rst;
-        rst_p           <= rst_r;
-        rst_rising      <= rst_r & ~rst_p;
-
-        // This signal goes high with tt_finished and stays high until stall is low and ready is high
-        tt_wait <= tt_finished | (tt_wait & (stall | ~ready));
-
-        tt <= (tt_finished | rst_r) ? tt_in : tt;
+        // This signal goes high with period_done and stays high until stall is low and ready is high
+        tt_wait <= period_done | (tt_wait & (stall | ~ready));
+        tt <= (period_done | rst) ? tt_in : tt;
     end
 endmodule

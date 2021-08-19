@@ -44,19 +44,27 @@ module frontend #(
     */
 
     assign config_spi_ncs = 1;
-    wire sys_clk, sys_ctrl_ddr, sys_ctrl, sys_rst, data_clk_ddr;
+    wire sys_clk_in, sys_clk, sys_ctrl_ddr, sys_ctrl, sys_rst, data_clk_ddr;
 
     // System clock input
-    IBUFGDS sys_clk_inst  (.I(sys_clk_p), .IB(sys_clk_n), .O(sys_clk));
+    IBUFGDS sys_clk_inst  (.I(sys_clk_p), .IB(sys_clk_n), .O(sys_clk_in));
 
     // Generate frontend clock
-    wire clk_frontend, clk_frontend_fb, clk_frontend_out;
-    PLLE2_BASE #(.CLKFBOUT_MULT(12), .CLKOUT0_DIVIDE(3), .CLKIN1_PERIOD(10)) clk_frontend_inst (
-        .CLKIN1(sys_clk), .CLKOUT0(clk_frontend_out),
-        .CLKFBIN(clk_frontend_fb), .CLKFBOUT(clk_frontend_fb),
+    // Frontend clock is 4x the system clock, 8 bits for DDR ISERDES
+    wire clk_frontend, clk_frontend_fb;
+    PLLE2_BASE #(
+        .CLKIN1_PERIOD(10),
+        .CLKFBOUT_MULT(12),
+        .CLKOUT0_DIVIDE(3),
+        .CLKOUT1_DIVIDE(12)
+    ) clk_frontend_inst (
+        .CLKIN1(sys_clk_in),
+        .CLKOUT0(clk_frontend),
+        .CLKOUT1(sys_clk),
+        .CLKFBIN(clk_frontend_fb),
+        .CLKFBOUT(clk_frontend_fb),
         .RST(1'b0), .LOCKED()
     );
-    IBUFG clk_frontend_buf_inst (.I(clk_frontend_out), .O(clk_frontend));
     
     // Control data input
     IBUFDS  sys_ctrl_inst (.I(sys_ctrl_p), .IB(sys_ctrl_n), .O(sys_ctrl_ddr));
@@ -83,39 +91,6 @@ module frontend #(
         );
         OBUFDS data_inst (.I(data_ddr_out[i]), .O(data_p[i]), .OB(data_n[i]));
     end endgenerate
-
-    /*
-    // DDR inputs from frontend detectors
-    wire [NCHAN_TOTAL - 1:0] block1_rising, block1_falling;
-    wire [NCHAN_TOTAL - 1:0] block2_rising, block2_falling;
-    wire [NCHAN_TOTAL - 1:0] block3_rising, block3_falling;
-    wire [NCHAN_TOTAL - 1:0] block4_rising, block4_falling;
-
-    genvar j;
-    generate for (j = 0; j < NCHAN_TOTAL; j = j + 1) begin: chan_gen
-        IDDR block1_iddr_inst (
-            .C(clk_frontend), .CE(1), .S(), .R(0),
-            .D(block1[j]), .Q1(block1_rising[j]), .Q2(block1_falling[j])
-        );
-
-        IDDR block2_iddr_inst (
-            .C(clk_frontend), .CE(1), .S(), .R(0),
-            .D(block2[j]), .Q1(block2_rising[j]), .Q2(block2_falling[j])
-        );
-
-        IDDR block3_iddr_inst (
-            .C(clk_frontend), .CE(1), .S(), .R(0),
-            .D(block3[j]), .Q1(block3_rising[j]), .Q2(block3_falling[j])
-        );
-
-        IDDR block4_iddr_inst (
-            .C(clk_frontend), .CE(1), .S(), .R(0),
-            .D(block4[j]), .Q1(block4_rising[j]), .Q2(block4_falling[j])
-        );
-    end endgenerate
-    */
-
-    // END IO instantiation
     
     /*
     * Control logic, including data rx from backend, reset, and ublaze
@@ -276,25 +251,15 @@ module frontend #(
     
     wire [3:0] stall;
 
-    /*
-    time_counter time_tag_inst (
-        .clk_frontend(clk_frontend),
-        .clk_backend(sys_clk),
-        .rst(sys_rst),
-        .module_id(module_id),
-        .tt_stall(|stall),
+    wire [16:0] curr_counter;
+    wire [47:0] curr_period;
+    wire period_done;
 
-        .tt_valid(valid[4]),
-        .tt_ready(ready[4]),
-        .tt(data[4])
-    );
-    */
-
-    localparam counter_width = 13;
-
+    localparam counter_width = 17;
     time_counter_iserdes #(.COUNTER(counter_width)) time_tag_inst (
         .clk(sys_clk), .rst(sys_rst), .module_id(module_id), .stall(|stall),
-        .valid(valid[4]), .ready(ready[4]), .tt(data[4])
+        .valid(valid[4]), .ready(ready[4]), .tt(data[4]),
+        .counter(curr_counter), .period(curr_period), .period_done(period_done)
     );
 
     wire [NCHAN_TOTAL*4-1:0] blocks = {block1, block2, block3, block4};
@@ -309,75 +274,15 @@ module frontend #(
             .block_id({module_id, blk_idx}),
             .stall(stall[i]),
 
+            .counter(curr_counter),
+            .period(curr_period),
+            .period_done(period_done),
+
             .data_ready(ready[i]),
             .data_valid(valid[i]),
             .data_out(data[i]),
             .period_out(period[i])
         );
     end endgenerate
-
-    /*
-    // Implement the four frontend readout blocks
-
-    detector_front_end block1_inst (
-        .clk_frontend(clk_frontend),
-        .clk_backend(sys_clk),
-        .rst(sys_rst),
-        .block_id({module_id, 2'h0}),
-        .signal_rising(block1_rising),
-        .signal_falling(block1_falling),
-        .stall(stall[0]),
-
-        .data_ready(ready[0]),
-        .data_valid(valid[0]),
-        .data_out(data[0]),
-        .period_out(period[0])
-    );
-
-    detector_front_end block2_inst (
-        .clk_frontend(clk_frontend),
-        .clk_backend(sys_clk),
-        .rst(sys_rst),
-        .block_id({module_id, 2'h1}),
-        .signal_rising(block2_rising),
-        .signal_falling(block2_falling),
-        .stall(stall[1]),
-
-        .data_ready(ready[1]),
-        .data_valid(valid[1]),
-        .data_out(data[1]),
-        .period_out(period[1])
-    );
-
-    detector_front_end block3_inst (
-        .clk_frontend(clk_frontend),
-        .clk_backend(sys_clk),
-        .rst(sys_rst),
-        .block_id({module_id, 2'h2}),
-        .signal_rising(block3_rising),
-        .signal_falling(block3_falling),
-        .stall(stall[2]),
-
-        .data_ready(ready[2]),
-        .data_valid(valid[2]),
-        .data_out(data[2]),
-        .period_out(period[2])
-    );
-
-    detector_front_end block4_inst (
-        .clk_frontend(clk_frontend),
-        .clk_backend(sys_clk),
-        .rst(sys_rst),
-        .block_id({module_id, 2'h3}),
-        .signal_rising(block4_rising),
-        .signal_falling(block4_falling),
-        .stall(stall[3]),
-
-        .data_ready(ready[3]),
-        .data_valid(valid[3]),
-        .data_out(data[3]),
-        .period_out(period[3])
-    );
-    */
 
 endmodule
