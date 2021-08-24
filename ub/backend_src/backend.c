@@ -11,9 +11,23 @@ int main()
     SPI_INIT();
 
     uint32_t cmd, cmd_valid, value;
+    uint32_t frontend_value, frontend_invalid;
 
 	while(1)
 	{
+        // read FSL from frontend and write to SPI
+        for (uint32_t i = 0; i < XPAR_MICROBLAZE_0_FSL_LINKS; i++)
+        {
+            frontend_invalid = 1;
+            getdfslx(frontend_value, i, FSL_NONBLOCKING);
+            fsl_isinvalid(frontend_invalid);
+            if (!frontend_invalid)
+            {
+                SPI_WRITE(frontend_value);
+            }
+        }
+
+        // read from SPI and respond to commands
         cmd_valid = 0;
         if (SPI_RX_VALID())
         {
@@ -22,6 +36,7 @@ int main()
             SPI_TX_RST();
         }
 
+        // generate command response
         if (cmd_valid)
 		{
             cmd_t c = CMD_COMMAND(cmd);
@@ -68,19 +83,6 @@ int main()
                     break;
             }
 		}
-
-        volatile uint32_t frontend_value, frontend_invalid;
-        for (uint32_t i = 0; i < XPAR_MICROBLAZE_0_FSL_LINKS; i++)
-        {
-            frontend_invalid = 1;
-            getdfslx(frontend_value, i, FSL_NONBLOCKING);
-            fsl_isinvalid(frontend_invalid);
-            if (!frontend_invalid)
-            {
-                SPI_WRITE(frontend_value);
-            }
-        }
 	}
-
 	return 0;
 }

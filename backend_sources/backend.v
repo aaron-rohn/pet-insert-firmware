@@ -246,7 +246,6 @@ module backend #(
                 .ready(rst_m_ready),
                 .data_in(rst_m_data),
                 .idle(tx_idle[i]),
-                .tx_err(),
                 .d(m_ctrl[i])
             );
         end
