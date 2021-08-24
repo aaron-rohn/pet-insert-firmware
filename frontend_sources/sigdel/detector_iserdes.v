@@ -21,6 +21,13 @@ module detector_iserdes #(
     output wire [DATA_BITS - 1:0] data_out,
     output reg [47:0] period_out = 0
 );
+
+    // Extend the reset by at least two clocks to wait for iserdes
+    localparam n_rst_ext = 4;
+    reg [n_rst_ext-1:0] rst_sr = {n_rst_ext{1'b1}};
+    wire rst_ext = rst | (|rst_sr);
+    always @(posedge clk) rst_sr <= {rst_sr, rst};
+
     genvar i;
     integer j;
 
@@ -92,9 +99,9 @@ module detector_iserdes #(
             .WIDTH_PRODUCT(12),
             .LATENCY(3)
         ) accum_inst (
-            .LOAD(start | rst), .LOAD_DATA(0),
+            .LOAD(start | rst_ext), .LOAD_DATA(0),
             .MULTIPLIER(1), .PREADD1(nbits), .PREADD2(0),
-            .RST(rst), .CE(1), .CLK(clk), .CARRYIN(0),
+            .RST(rst_ext), .CE(1), .CLK(clk), .CARRYIN(0),
             .PRODUCT(energy[12*i +: 12])
         );
     end endgenerate
@@ -119,18 +126,18 @@ module detector_iserdes #(
 
         // Latch timing info on event starting edge
         trig_r <= trig;
-        start_time <= (timing_change | rst) ? new_start_time : start_time;
-        period_out <= (timing_change | rst) ? period : period_out;
+        start_time <= (timing_change | rst_ext) ? new_start_time : start_time;
+        period_out <= (timing_change | rst_ext) ? period : period_out;
 
         // Event valid signals
-        valid_ev <= (valid_ev | timing_change) & ~(finish | rst);
-        active_all_latch <= (active_all_latch | active_all) & ~(finish | rst);
+        valid_ev <= (valid_ev | timing_change) & ~(finish | rst_ext);
+        active_all_latch <= (active_all_latch | active_all) & ~(finish | rst_ext);
 
         // Stall a current time tag until event finishes
-        stall <= (stall | (active_any & period_done)) & ~(finish | rst);
+        stall <= (stall | (active_any & period_done)) & ~(finish | rst_ext);
 
         // Data output handshaking
-        data_valid <= (done | data_valid) & ~(data_ack | rst);
+        data_valid <= (done | data_valid) & ~(data_ack | rst_ext);
     end
 
     assign data_out = {

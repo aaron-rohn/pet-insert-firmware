@@ -11,7 +11,7 @@
 #define ADC1_ADDR			0x49
 #define THRESH_DEFAULT 		0x6B7 // 50mV
 #define BIAS_DEFAULT 		0x000 // 0.0V
-#define GPIO1()	            Xil_In32(XPAR_AXI_GPIO_0_BASEADDR + 0x8)
+#define GPIO1()	            Xil_In32(XPAR_AXI_GPIO_0_BASEADDR)
 
 int main()
 {
@@ -45,12 +45,12 @@ int main()
         {
             cmd_t c = CMD_COMMAND(cmd_buf);
             uint8_t module_id = GPIO1() & 0xF;
-			uint32_t cmd_response = CMD_EMPTY | (module_id << 24) | (c << 20);
             uint8_t cmd_or_addr = 0;
             uint8_t channel = 0;
-            uint16_t value = 0;
+            uint32_t value = 0;
 
-            switch(c) {
+            switch(c)
+            {
                 case DAC_WRITE:
                     cmd_or_addr = CMD_DAC_COMMAND(cmd_buf);
                     channel     = CMD_DAC_CHANNEL(cmd_buf);
@@ -75,8 +75,6 @@ int main()
                         iic_return = iic_read(DAC_ADDR, 1, iic_write_buf, 2, iic_write_buf);
                         value = (iic_write_buf[0] << 4) | (iic_write_buf[1] >> 4);
                     }
-
-                    cmd_response |= (iic_return ?: value);
                     break;
 
                 case ADC_READ:
@@ -111,8 +109,7 @@ int main()
                         iic_return = iic_read(cmd_or_addr, 1, iic_write_buf, 2, iic_write_buf);
                     }
 
-                    value = iic_return ?: (iic_write_buf[0] << 4) | (iic_write_buf[1] >> 4);
-                    cmd_response |= value;
+                    value = (iic_write_buf[0] << 4) | (iic_write_buf[1] >> 4);
                     break;
 
                 case MODULE_ID:
@@ -121,7 +118,9 @@ int main()
                     break;
             }
 
-            putfslx(cmd_response, 0, FSL_DEFAULT);
+            value = iic_return ?: value;
+			value = CMD_BUILD(module_id, c, value);
+            putfslx(value, 0, FSL_DEFAULT);
 		}
     }
 

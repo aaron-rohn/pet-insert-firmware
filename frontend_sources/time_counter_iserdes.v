@@ -34,6 +34,7 @@ module time_counter_iserdes #(
 
     timer #(.COUNTER(COUNTER)) timer_inst (
         .clk(clk), .rst(rst),
+        .counter_max(20'd99_998), // 1 ms tt interval (100000 - 2 clocks latency)
         .counter(counter), .period(period),
         .period_done(period_done)
     );
@@ -43,12 +44,15 @@ module time_counter_iserdes #(
     * the previous period are completed.
     */
 
-    reg tt_wait = 0;
+    reg tt_wait = 0, rst_r = 0;
     assign valid = tt_wait & ~stall;
+    wire rst_done = rst_r & ~rst;
 
     always @ (posedge clk) begin
+        rst_r <= rst;
+
         // This signal goes high with period_done and stays high until stall is low and ready is high
-        tt_wait <= period_done | (tt_wait & (stall | ~ready));
+        tt_wait <= (period_done | rst_done) | (tt_wait & (stall | ~ready));
         tt <= (period_done | rst) ? tt_in : tt;
     end
 endmodule

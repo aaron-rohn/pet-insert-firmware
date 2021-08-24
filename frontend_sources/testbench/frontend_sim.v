@@ -52,6 +52,13 @@ module frontend_sim();
         end 
         #10 data_tx_valid <= 0;
 
+        #120_000
+        @ (posedge data_rx_ready) begin
+            data_tx_valid <= 1;
+            cmd_data_in <= 32'hF000_0000; // reset
+        end 
+        #10 data_tx_valid <= 0;
+
         /*
         #500_000
         @ (posedge data_rx_ready) begin

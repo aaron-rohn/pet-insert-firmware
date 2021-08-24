@@ -1,10 +1,8 @@
 `timescale 1ns / 1ps
 
 module frontend #(
-    NBLOCK         = 4, 
     MODULE_ID_BITS = 4,
-    NCHAN_TOTAL    = 10, 
-    TIME_BITS      = 20,
+    NCH            = 10, 
     CRC_BITS       = 5,
     DATA_WIDTH     = 128,
     LINES          = 3
@@ -13,10 +11,10 @@ module frontend #(
     input wire [MODULE_ID_BITS - 1:0] module_id,
 
     // timing front, timing rear, A-D front, A-D rear
-    input wire [NCHAN_TOTAL - 1:0] block1,
-    input wire [NCHAN_TOTAL - 1:0] block2,
-    input wire [NCHAN_TOTAL - 1:0] block3,
-    input wire [NCHAN_TOTAL - 1:0] block4,
+    input wire [NCH - 1:0] block1,
+    input wire [NCH - 1:0] block2,
+    input wire [NCH - 1:0] block3,
+    input wire [NCH - 1:0] block4,
 
     // High speed interface
     
@@ -121,13 +119,12 @@ module frontend #(
     );
 
     wire cmd_ready_out, cmd_valid_out;
-    wire [31:0] cmd_data_out, gpio;
+    wire [31:0] cmd_data_out;
 
     low_speed_interfaces_wrapper ublaze_inst (
         .Clk(sys_clk),
         .rst(sys_rst),
-        .gpio_rtl_0_tri_o(gpio),
-        .gpio_rtl_1_tri_i(module_id),
+        .gpio_rtl_0_tri_i({{(32-MODULE_ID_BITS){1'b0}}, module_id}),
         .iic_rtl_0_scl_io(SCL),
         .iic_rtl_0_sda_io(SDA),
 
@@ -182,7 +179,7 @@ module frontend #(
 
     generate for (i = 0; i < 4; i = i + 1) begin: block_mux
         // Does an event preceed the most recent time tag?
-        assign earlier[i] = !(period[i] > period[TT]);
+        assign earlier[i] = period[i] < period[TT];
 
         // Does a block contain a valid event, and if there is a time tag
         // waiting does the event preceed it?
@@ -262,15 +259,14 @@ module frontend #(
         .counter(curr_counter), .period(curr_period), .period_done(period_done)
     );
 
-    wire [NCHAN_TOTAL*4-1:0] blocks = {block1, block2, block3, block4};
+    wire [NCH*4-1:0] blocks = {block1, block2, block3, block4};
     generate for (i = 0; i < 4; i = i + 1) begin
-        wire [NCHAN_TOTAL-1:0] blk = blocks[i*NCHAN_TOTAL +: NCHAN_TOTAL];
         wire [1:0] blk_idx = i;
         detector_iserdes #(.COUNTER(counter_width)) det_inst (
             .sample_clk(clk_frontend),
             .clk(sys_clk),
             .rst(sys_rst),
-            .signal(blk),
+            .signal(blocks[i*NCH +: NCH]),
             .block_id({module_id, blk_idx}),
             .stall(stall[i]),
 
