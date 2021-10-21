@@ -71,18 +71,20 @@ module backend #(
     assign config_spi_ncs = 1;
     
     // System clock and reset
-    wire clk_100, sys_rst_ddr, sys_rst;
+    wire clk_100, sys_rst_ddr, sys_rst, soft_rst;
+
     IBUFGDS sys_clk_inst (.I(sys_clk_p), .IB(sys_clk_n), .O(clk_100));
     IBUFDS sys_rst_inst (.I(sys_rst_p), .IB(sys_rst_n), .O(sys_rst_ddr));
+
     IDDR #(.DDR_CLK_EDGE("SAME_EDGE")) sys_rst_iddr_inst (
-        .Q1(), .Q2(sys_rst), .D(sys_rst_ddr), .C(clk_100), .CE(1), .S(), .R(0));
+        .Q1(), .Q2(sys_rst), .D(sys_rst_ddr), .C(clk_100), .CE(1), .S(), .R(soft_rst));
 
     // Generate 125MHz ethernet clock from system clock
     wire eth_clk, eth_clk_fb;
     PLLE2_BASE #(.CLKFBOUT_MULT(10), .CLKOUT0_DIVIDE(8), .CLKIN1_PERIOD(10)) eth_clk_inst (
         .CLKIN1(clk_100), .CLKOUT0(eth_clk),
         .CLKFBIN(eth_clk_fb), .CLKFBOUT(eth_clk_fb),
-        .RST(1'b0), .LOCKED());
+        .RST(soft_rst), .LOCKED());
 
     // Input and output connections to frontend modules
     wire [NMODULES-1:0] m_clk_ddr, m_ctrl_ddr, m_ctrl, m_data_clk;
@@ -90,11 +92,17 @@ module backend #(
     generate
         for (i = 0; i < NMODULES; i = i + 1) begin: frontend_port_inst
             // Clock output to frontend
-            ODDR m_clk_oddr_inst (.D1(1'b1), .D2(1'b0), .CE(1'b1), .C(clk_100), .S(), .R(1'b0), .Q(m_clk_ddr[i]));
+            ODDR m_clk_oddr_inst (
+                .D1(1'b1), .D2(1'b0), .CE(1'b1), .C(clk_100), 
+                .S(), .R(soft_rst), .Q(m_clk_ddr[i]));
+
             OBUFDS m1_clk_obuf_inst (.I(m_clk_ddr[i]), .O(m_clk_p[i]), .OB(m_clk_n[i]));
 
             // Control output to frontend
-            ODDR #(.DDR_CLK_EDGE("SAME_EDGE")) m_ctrl_oddr_inst (.D1(m_ctrl[i]), .D2(m_ctrl[i]), .CE(1'b1), .C(clk_100), .S(), .R(1'b0), .Q(m_ctrl_ddr[i]));
+            ODDR #(.DDR_CLK_EDGE("SAME_EDGE")) m_ctrl_oddr_inst (
+                .D1(m_ctrl[i]), .D2(m_ctrl[i]), .CE(1'b1), .C(clk_100),
+                .S(), .R(soft_rst), .Q(m_ctrl_ddr[i]));
+
             OBUFDS m_ctrl_obuf_inst (.I(m_ctrl_ddr[i]), .O(m_ctrl_p[i]), .OB(m_ctrl_n[i]));    
 
             // Data clock from frontend
@@ -106,11 +114,15 @@ module backend #(
             // module 3: 6-8
             // module 4: 9-11
             for (j = 0; j < LINES; j = j + 1) begin: frontend_data_inst
-                IBUFDS m_data_inst (.I(m_data_p[i*LINES+j]), .IB(m_data_n[i*LINES+j]), .O(m_data_in_ddr[i*LINES+j]));
+                IBUFDS m_data_inst (
+                    .I(m_data_p[i*LINES+j]), 
+                    .IB(m_data_n[i*LINES+j]), 
+                    .O(m_data_in_ddr[i*LINES+j]));
 
                 wire falling_edge_data;
                 IDDR #(.DDR_CLK_EDGE("SAME_EDGE")) m_data_iddr_inst (
-                    .Q1(), .Q2(falling_edge_data), .D(m_data_in_ddr[i*LINES+j]), .C(m_data_clk[i]), .CE(1), .S(), .R(1'b0));
+                    .Q1(), .Q2(falling_edge_data), .D(m_data_in_ddr[i*LINES+j]), 
+                    .C(m_data_clk[i]), .CE(1), .S(), .R(soft_rst));
 
                 // module 2 line 0 (pads D5 and D6) are inverted on the schematic - flip it back to the correct polarity here
                 if (i == 2 && j == 0) begin
@@ -137,7 +149,7 @@ module backend #(
     assign gpio_i[31:(2*NMODULES)] = 0;
 
     wire [31:0] gpio_o;
-    wire soft_rst           = gpio_o[0];
+    assign soft_rst         = gpio_o[0];
     assign status_fpga      = gpio_o[1];
     assign status_network   = gpio_o[2];
     assign m_en             = gpio_o[7:4];
@@ -149,7 +161,7 @@ module backend #(
 
     low_speed_interface_wrapper low_speed_inst (
         .clk(clk_100),
-        .rst(0),
+        .rst(soft_rst),
 
         .gpio_i_tri_i(gpio_i),
         .gpio_o_tri_o(gpio_o),
@@ -212,44 +224,41 @@ module backend #(
     * Reset controller and TX controller
     */
 
-    localparam RST_CODE = 4'b1100;
+    localparam RST_CODE = 4'b1100; // IDLE_CODE = 4'b1010;
     reg [3:0] sys_rst_reg = 0;
     wire sys_rst_valid = (sys_rst_reg == RST_CODE);
     always @ (posedge clk_100) sys_rst_reg <= {sys_rst_reg, sys_rst};
 
     // Per-module reset controller and tx controller
-    generate
-        for (i = 0; i < NMODULES; i = i + 1) begin: tx_side_inst
+    generate for (i = 0; i < NMODULES; i = i + 1) begin: tx_side_inst
 
-            wire rst_m_ready, rst_m_valid;
-            wire [CMD_LEN-1:0] rst_m_data;
+        wire tx_ready, tx_valid;
+        wire [CMD_LEN-1:0] tx_data;
 
-            // Generate rst signals and forward command data to transmitter
-            rst_controller m_rst_inst (
-                .clk(clk_100),
-                .rst(sys_rst_valid),
+        rst_controller m_rst_inst (
+            .clk(clk_100),
+            .rst(soft_rst | sys_rst_valid),
 
-                .cmd_in_valid(ub_m_cmd_valid[i]),
-                .cmd_in_ready(ub_m_cmd_ready[i]),
-                .cmd_in(ub_m_cmd_data[i*CMD_LEN +: CMD_LEN]),
+            .cmd_in_valid(ub_m_cmd_valid[i]),
+            .cmd_in_ready(ub_m_cmd_ready[i]),
+            .cmd_in(ub_m_cmd_data[i*CMD_LEN +: CMD_LEN]),
 
-                .cmd_out_ready(rst_m_ready),
-                .cmd_out_valid(rst_m_valid),
-                .cmd_out(rst_m_data)
-            );
+            .cmd_out_ready(tx_ready),
+            .cmd_out_valid(tx_valid),
+            .cmd_out(tx_data));
 
-            // Instantiate data transmitter
-            data_tx #(.LENGTH(CMD_LEN), .LINES(1)) m_tx_inst (
-                .clk(clk_100),
-                .rst(sys_rst_valid),
-                .valid(rst_m_valid),
-                .ready(rst_m_ready),
-                .data_in(rst_m_data),
-                .idle(tx_idle[i]),
-                .d(m_ctrl[i])
-            );
-        end
-    endgenerate
+        data_tx #(.LENGTH(CMD_LEN), .LINES(1)) m_tx_inst (
+            .clk(clk_100),
+            .rst(soft_rst | sys_rst_valid),
+            .idle(tx_idle[i]),
+
+            .valid(tx_valid),
+            .ready(tx_ready),
+            .data_in(tx_data),
+
+            .d(m_ctrl[i]));
+
+    end endgenerate
 
     /*
     * Receiver side components
@@ -261,82 +270,79 @@ module backend #(
     wire [LENGTH*NMODULES-1:0] m_data_out;
 
     // Per-module rx controller and fifos
-    generate
-        for (i = 0; i < NMODULES; i = i + 1) begin: module_controller_inst
+    generate for (i = 0; i < NMODULES; i = i + 1) begin: rx_side_inst
 
-            wire m_rx_valid, m_rx_err;
-            wire [LENGTH-1:0] m_rx_data;
+        wire m_rx_valid, m_rx_err;
+        wire [LENGTH-1:0] m_rx_data;
 
-            localparam SGL_FLAG_OFFSET = 122, CMD_FLAG_OFFSET = 115;
-            wire data_is_cmd = ~m_rx_data[SGL_FLAG_OFFSET] & m_rx_data[CMD_FLAG_OFFSET];
+        localparam SGL_FLAG_OFFSET = 122, CMD_FLAG_OFFSET = 115;
+        wire data_is_cmd = ~m_rx_data[SGL_FLAG_OFFSET] & m_rx_data[CMD_FLAG_OFFSET];
 
-            clk_toggling clk_toggling_inst (
-                .clk(m_data_clk[i]), .clk_fb(clk_100), .toggling(rx_toggling[i]));
+        clk_toggling clk_toggling_inst (
+            .clk(m_data_clk[i]), .clk_fb(clk_100), .toggling(rx_toggling[i]));
 
-            // Instantiate receiver for control and data from frontend
-            data_rx m_data_rx (
-                .clk(m_data_clk[i]),
-                .rst(1'b0),
-                .d(m_data_in[i*LINES +: LINES]),
-                .rx_err(m_rx_err),
-                .valid(m_rx_valid),
-                .data(m_rx_data)
-            );
+        // Instantiate receiver for control and data from frontend
+        data_rx m_data_rx (
+            .clk(m_data_clk[i]),
+            .rst(soft_rst),
+            .d(m_data_in[i*LINES +: LINES]),
+            .rx_err(m_rx_err),
+            .valid(m_rx_valid),
+            .data(m_rx_data)
+        );
 
-            xpm_cdc_array_single #(.WIDTH(1)) rx_err_cdc_inst (
-                .src_in(m_rx_err), .src_clk(m_data_clk[i]),
-                .dest_out(rx_err[i]), .dest_clk(clk_100)
-            );
+        xpm_cdc_array_single #(.WIDTH(1)) rx_err_cdc_inst (
+            .src_in(m_rx_err), .src_clk(m_data_clk[i]),
+            .dest_out(rx_err[i]), .dest_clk(clk_100)
+        );
 
-            wire rx_data_fifo_empty, rx_cmd_fifo_empty;
-            assign m_data_valid[i] = ~rx_data_fifo_empty;
-            assign m_ub_cmd_valid[i]  = ~rx_cmd_fifo_empty;
+        wire rx_data_fifo_empty, rx_cmd_fifo_empty;
+        assign m_data_valid[i] = ~rx_data_fifo_empty;
+        assign m_ub_cmd_valid[i]  = ~rx_cmd_fifo_empty;
 
-            // Since each receiver has its own clock domain, pass data through fifo
-            
-            xpm_fifo_async #(
-                .READ_MODE("fwft"),
-                .FIFO_READ_LATENCY(0),
-                .WRITE_DATA_WIDTH(128),
-                .READ_DATA_WIDTH(128)
-            ) rx_data_fifo (
-                .full(),
-                .din(m_rx_data),
-                .wr_en(m_rx_valid & ~data_is_cmd),
-                .wr_clk(m_data_clk[i]),
-    
-                .empty(rx_data_fifo_empty),
-                .dout(m_data_out[i*LENGTH +: LENGTH]),
-                .rd_en(m_data_valid[i] & m_data_ready[i]),
-                .rd_clk(clk_100)
-            );
+        // Since each receiver has its own clock domain, pass data through fifo
+        
+        xpm_fifo_async #(
+            .READ_MODE("fwft"),
+            .FIFO_READ_LATENCY(0),
+            .WRITE_DATA_WIDTH(128),
+            .READ_DATA_WIDTH(128)
+        ) rx_data_fifo (
+            .full(),
+            .din(m_rx_data),
+            .wr_en(m_rx_valid & ~data_is_cmd),
+            .wr_clk(m_data_clk[i]),
 
-            wire [LENGTH-1:0] m_ub_cmd_data_full;
-            assign m_ub_cmd_data[i*CMD_LEN +: CMD_LEN] = m_ub_cmd_data_full[0 +: CMD_LEN];
+            .empty(rx_data_fifo_empty),
+            .dout(m_data_out[i*LENGTH +: LENGTH]),
+            .rd_en(m_data_valid[i] & m_data_ready[i]),
+            .rd_clk(clk_100)
+        );
 
-            xpm_fifo_async #(
-                .READ_MODE("fwft"),
-                .FIFO_READ_LATENCY(0),
-                .WRITE_DATA_WIDTH(128),
-                .READ_DATA_WIDTH(128)
-            ) rx_cmd_fifo (
-                .full(),
-                .din(m_rx_data),
-                .wr_en(m_rx_valid & data_is_cmd),
-                .wr_clk(m_data_clk[i]),
-    
-                .empty(rx_cmd_fifo_empty),
-                .dout(m_ub_cmd_data_full),
-                .rd_en(m_ub_cmd_valid[i] & m_ub_cmd_ready[i]),
-                .rd_clk(clk_100)
-            );
-        end
-    endgenerate
+        wire [LENGTH-1:0] m_ub_cmd_data_full;
+        assign m_ub_cmd_data[i*CMD_LEN +: CMD_LEN] = m_ub_cmd_data_full[0 +: CMD_LEN];
 
-    reg [LENGTH-1:0] m_data_mux;
-    reg [NMODULES-1:0] m_ready_suppress;
+        xpm_fifo_async #(
+            .READ_MODE("fwft"),
+            .FIFO_READ_LATENCY(0),
+            .WRITE_DATA_WIDTH(128),
+            .READ_DATA_WIDTH(128)
+        ) rx_cmd_fifo (
+            .full(),
+            .din(m_rx_data),
+            .wr_en(m_rx_valid & data_is_cmd),
+            .wr_clk(m_data_clk[i]),
+
+            .empty(rx_cmd_fifo_empty),
+            .dout(m_ub_cmd_data_full),
+            .rd_en(m_ub_cmd_valid[i] & m_ub_cmd_ready[i]),
+            .rd_clk(clk_100)
+        );
+
+    end endgenerate
 
     integer k;
+    reg [LENGTH-1:0] m_data_mux;
     always @ (*) begin
         // Priority encoder for data
         m_data_mux = 0;
@@ -344,14 +350,10 @@ module backend #(
             if (m_data_valid[k])
                 m_data_mux = m_data_out[k*LENGTH +: LENGTH];
 
-        // Rolling OR of valid bus
-        m_ready_suppress[0] = 0;
+        // Priority encoder for 'ready' signal
+        m_data_ready[0] = 1;
         for (k = 1; k < NMODULES; k = k + 1)
-            m_ready_suppress[k] = m_data_valid[k-1] | m_ready_suppress[k-1];
-
-        // Create ready signal
-        for (k = 0; k < NMODULES; k = k + 1)
-            m_data_ready[k] = ~m_ready_suppress[k];
+            m_data_ready[k] = ~m_data_valid[k-1] & m_data_ready[k-1];
     end
 
     /*

@@ -2,14 +2,6 @@
 #define _CUSTOM_COMMAND_H_
 
 #include <xparameters.h>
-#define GPIO_SET_FPGA_LED() Xil_Out32(XPAR_GPIO_0_BASEADDR, 0x1 << 1);
-// read gpio output bank
-#define GPIO_RD_O()     Xil_In32(XPAR_GPIO_0_BASEADDR)
-// write gpio output bank
-#define GPIO_WR_O(val)  Xil_Out32(XPAR_GPIO_0_BASEADDR, val);
-// read gpio input bank
-#define GPIO_RD_I()     Xil_In32(XPAR_GPIO_0_BASEADDR + 0x8)
-
 /*
  * Command structure: 32 bits
  *
@@ -68,8 +60,29 @@ typedef enum {
 #define PWR_UPDATE(cmd) ((cmd >> 4) & 0x1)
 #define PWR_MASK(cmd)   (cmd & 0xF)
 
-// payload: { 4 bits: X, 8 bits: offset, 8 bits: mask }
-#define GPIO_OFF(cmd)   ((cmd >> 8) & 0xFF)
-#define GPIO_MASK(cmd)  (cmd & 0xFF)
+/*
+ * payload: { 
+ *  2 bits: RD/WR,
+ *  2 bits: bank 0/1
+ *  8 bits: offset, 
+ *  4 bits: mask, 
+ *  4 bits: value
+ * }
+ */
+// Nonzero value in the top 4 bits specifies write, zero specifies read
+#define GPIO_RW(cmd)    ((cmd >> 18) & 0x03)
+#define GPIO_BANK(cmd)  ((cmd >> 16) & 0x03)
+#define GPIO_OFF(cmd)   ((cmd >>  8) & 0xFF)
+#define GPIO_MASK(cmd)  ((cmd >>  4) & 0x0F)
+#define GPIO_VALUE(cmd) ((cmd >>  0) & 0x0F)
+
+#define GPIO_SET_FPGA_LED() Xil_Out32(XPAR_GPIO_0_BASEADDR, 0x1 << 1);
+
+#define GPIO_RD_O()     Xil_In32(XPAR_GPIO_0_BASEADDR)
+#define GPIO_WR_O(val)  Xil_Out32(XPAR_GPIO_0_BASEADDR, val);
+#define GPIO_RD_I()     Xil_In32(XPAR_GPIO_0_BASEADDR + 0x8)
+
+#define GPIO_RD(bank) \
+    Xil_In32(XPAR_GPIO_0_BASEADDR + (bank ? 0x8 : 0x0))
 
 #endif

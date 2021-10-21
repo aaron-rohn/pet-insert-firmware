@@ -23,6 +23,7 @@ int main()
             fsl_isinvalid(frontend_invalid);
             if (!frontend_invalid)
             {
+                // forward frontend response to workstation
                 SPI_WRITE(frontend_value);
             }
         }
@@ -36,53 +37,54 @@ int main()
             SPI_TX_RST();
         }
 
+        // no command received -- do not generate a response
+        if (!cmd_valid) continue;
+
         // generate command response
-        if (cmd_valid)
-		{
-            cmd_t c = CMD_COMMAND(cmd);
+        cmd_t c = CMD_COMMAND(cmd);
 
-            switch (c) {
-                case RST: // only rst board responds
-                case NOP: // no-op, just checking if alive
-                    SPI_WRITE(cmd);
-                    break;
+        switch (c)
+        {
+            case GPIO:
+                // read or write the two GPIO banks
+                // Handles reset, power, LED, and status reading
 
-                case GPIO:
-                    // read up to 8 bits from the gpio inputs
-                    value = (GPIO_RD_I() >> GPIO_OFF(cmd)) & GPIO_MASK(cmd);
-                    CMD_SET_PAYLOAD(cmd, value);
-                    SPI_WRITE(cmd);
-                    break;
+                if (GPIO_RW(cmd))
+                {
+                    // write to bank 0
+                    value = GPIO_RD_O();
+                    value &= ~(GPIO_MASK(cmd) << GPIO_OFF(cmd));
+                    value |= (GPIO_MASK(cmd) & GPIO_VALUE(cmd)) << GPIO_OFF(cmd);
+                    GPIO_WR_O(value);
+                }
 
-                case SET_POWER:
-                    if (PWR_UPDATE(cmd))
-                    {
-                        // turn on/off power to the specified modules
-                        value = GPIO_RD_O() & ~(0xF << 4);
-                        value |= (PWR_MASK(cmd) << 4);
-                        GPIO_WR_O(value);
-                    }
-                    // read and return power status
-                    value = (GPIO_RD_O() >> 4) & 0xF;
-                    CMD_SET_PAYLOAD(cmd, value);
-                    SPI_WRITE(cmd);
-                    break;
+                // read back from the specified bank
+                value = GPIO_RD(GPIO_BANK(cmd));
+                value = (value >> GPIO_OFF(cmd)) & GPIO_MASK(cmd);
 
-                case GET_CURRENT:
-                    value = ADC_CH_MAP(CMD_MODULE_LOWER(cmd));
-                    value = backend_current_read(value);
-                    CMD_SET_PAYLOAD(cmd, value);
-                    SPI_WRITE(cmd);
-                    break;
+                CMD_SET_PAYLOAD(cmd, value);
+                SPI_WRITE(cmd);
+                break;
 
-                default:
-                    // forward the command to the indicated module
-                    // no response to workstation yet - wait for frontend resp
-                    value = CMD_MODULE_LOWER(cmd);
-                    putdfslx(cmd, value, FSL_DEFAULT);
-                    break;
-            }
+            case NOP:
+                // no-op, just checking if alive
+                SPI_WRITE(cmd);
+                break;
+
+            case GET_CURRENT:
+                value = ADC_CH_MAP(CMD_MODULE_LOWER(cmd));
+                value = backend_current_read(value);
+                CMD_SET_PAYLOAD(cmd, value);
+                SPI_WRITE(cmd);
+                break;
+
+            default:
+                // forward the command to the indicated module
+                // no response to workstation yet - wait for frontend resp
+                value = CMD_MODULE_LOWER(cmd);
+                putdfslx(cmd, value, FSL_DEFAULT);
 		}
 	}
+
 	return 0;
 }
