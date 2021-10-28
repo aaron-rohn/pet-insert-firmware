@@ -35,7 +35,7 @@ proc build { ws_path src_path inc_path } {
 }
 
 #build /home/aaron/insert/ub/sync \
-#      /home/aaron/insert/src/ub/sync_src \
+#      {/home/aaron/insert/src/ub/sync_src /home/aaron/insert/src/ub/common} \
 #      /home/aaron/insert/src/ub/include
 
 build /home/aaron/insert/ub/backend \

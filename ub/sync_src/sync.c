@@ -2,50 +2,60 @@
 #include <xil_io.h>
 #include "custom_command.h"
 #include "custom_spi.h"
+#include "custom_gpio.h"
+
+#define MODULE_RST_BIT (0x1 << 3)
+#define MODULE_RST_ACK (0x1 << 0)
 
 int main()
 {
     GPIO_SET_FPGA_LED();
     SPI_INIT();
 
-    uint32_t cmd, cmd_valid, value;
-
 	while(1)
 	{
-        cmd_valid = 0;
+        uint32_t cmd = 0;
         if (SPI_RX_VALID())
         {
             cmd = SPI_READ();
-            cmd_valid = IS_CMD(cmd);
-            SPI_TX_RST();
         }
 
-        if (cmd_valid)
+        if (IS_CMD(cmd))
 		{
-            cmd_t c = CMD_COMMAND(cmd);
+            SPI_WRITE(0);
 
-            switch (c) {
+            cmd_t c = CMD_COMMAND(cmd);
+            uint32_t value = 0;
+
+            switch (c)
+            {
                 case RST:
                     // set the reset bit
                     value = GPIO_RD_O();
-                    GPIO_WR_O(value | 0x1);
+                    GPIO_WR_O(value | MODULE_RST_BIT);
 
                     // wait for rst ack
                     do value = GPIO_RD_I();
-                    while ((value & 0x1) == 0);
+                    while ((value & MODULE_RST_ACK) == 0);
 
                     // unset reset bit
                     value = GPIO_RD_O();
-                    GPIO_WR_O(value & ~0x1);
+                    GPIO_WR_O(value & ~MODULE_RST_BIT);
 
-                    SPI_WRITE(CMD_EMPTY | 0x1);
+                    cmd = CMD_EMPTY | 0x1;
+                    break;
+
+                case GPIO:
+                    cmd = handle_gpio(cmd);
                     break;
 
                 default:
-                    SPI_WRITE(cmd);
                     break;
             }
+
+            SPI_WRITE(cmd);
         }
     }
+
     return 0;
 }

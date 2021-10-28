@@ -27,6 +27,10 @@ set_property -dict {IOSTANDARD LVDS_25 DIFF_TERM TRUE PACKAGE_PIN C4} [get_ports
 
 create_clock -period 10 [get_ports sys_clk_p]
 create_clock -period 10 [get_ports clk_100_p]
+#create_clock -period 114 [get_ports gigex_spi_sck]
+#set_clock_groups -asynchronous \
+#-group [get_clocks -of_object [get_ports sys_clk_p]] \
+#-group [get_clocks -of_object [get_ports gigex_spi_sck]]
 
 ### Module Ports ###
 

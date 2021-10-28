@@ -43,6 +43,8 @@ module sync #(
     input wire gigex_spi_mosi,
     output wire gigex_spi_miso
 );
+    
+    wire self_soft_rst;
 
     assign config_spi_ncs = 1;
     assign sda = 1'bz;
@@ -61,10 +63,10 @@ module sync #(
     genvar i;
     generate
         for (i = 0; i < NBACKEND; i = i + 1) begin: backend_port_inst
-            ODDR   m_clk_oddr_inst (.D1(1), .D2(0), .CE(1), .C(clk_100), .S(), .R(0), .Q(m_clk_ddr[i]));
+            ODDR   m_clk_oddr_inst (.D1(1), .D2(0), .CE(1), .C(clk_100), .S(), .R(self_soft_rst), .Q(m_clk_ddr[i]));
             OBUFDS m_clk_obuf_inst (.I(m_clk_ddr[i]), .O(m_clk_p[i]), .OB(m_clk_n[i]));
 
-            ODDR #(.DDR_CLK_EDGE("SAME_EDGE")) m_rst_oddr_inst (.D1(m_rst), .D2(m_rst), .CE(1), .C(clk_100), .S(), .R(0), .Q(m_rst_ddr[i]));
+            ODDR #(.DDR_CLK_EDGE("SAME_EDGE")) m_rst_oddr_inst (.D1(m_rst), .D2(m_rst), .CE(1), .C(clk_100), .S(), .R(self_soft_rst), .Q(m_rst_ddr[i]));
             OBUFDS m_rst_obuf_inst (.I(m_rst_ddr[i]), .O(m_rst_p[i]), .OB(m_rst_n[i]));
         end
     endgenerate
@@ -80,7 +82,11 @@ module sync #(
     reg rst_ack = 0;
 
     always @ (posedge clk_100) begin
-        if (rst_code_mask[0]) begin
+        if (self_soft_rst) begin
+            rst_code_mask   <= RST_MASK;
+            rst_code        <= RST_IDLE;
+            rst_ack         <= 0;
+        end else if (rst_code_mask[0]) begin
             rst_code_mask   <= rst_code_mask >> 1;
             rst_code        <= rst_code << 1;
             rst_ack         <= rst_ack;
@@ -94,9 +100,10 @@ module sync #(
     // GPIO assignments
 
     wire [31:0] gpio_o, gpio_i;
-    assign module_rst_ub    = gpio_o[0];
+    assign self_soft_rst    = gpio_o[0];
     assign status_fpga      = gpio_o[1];
     assign status_network   = gpio_o[2];
+    assign module_rst_ub    = gpio_o[3];
 
     assign gpio_i[0] = rst_ack;
     assign gpio_i[31:1] = 0;
@@ -105,7 +112,7 @@ module sync #(
 
     design_1_wrapper ub_inst (
         .clk(clk_100),
-        .rst(0),
+        .rst(self_soft_rst),
         .spi_cs(gigex_spi_cs),
         .spi_sclk(gigex_spi_sck),
         .spi_miso(gigex_spi_miso),
