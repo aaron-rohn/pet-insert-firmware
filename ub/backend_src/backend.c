@@ -69,7 +69,12 @@ int main()
             getdfslx(value, i, FSL_NONBLOCKING);
             fsl_isinvalid(invalid);
 
-            if (!invalid)
+            /*
+             * Only send responses to the workstation if the
+             * power should be on. Sometimes some invalid data
+             * is generated when powering off the module
+             */
+            if (!invalid && MODULE_PWR_IS_SET(i))
             {
                 // forward frontend response to workstation
                 SPI_WRITE(value);
