@@ -1,32 +1,33 @@
 module detector_iserdes #(
-    parameter CRC_BITS     = 5,
-    parameter ID_BITS      = 6,
     parameter DATA_BITS    = 128,
-    parameter NCH          = 10,
-    parameter COUNTER      = 17
+    parameter NCH          = 10
 )(
     input wire sample_clk,
     input wire clk,
     input wire rst,
-    input wire [ID_BITS - 1:0] block_id,
+    input wire [5:0] block_id,
     input wire [NCH - 1:0] signal,
-    output reg stall = 0,
 
     input wire [16:0] counter,
-    input wire [47:0] period,
     input wire period_done,
 
     input wire data_ready,
     output reg data_valid = 0,
     output wire [DATA_BITS - 1:0] data_out,
-    output reg [47:0] period_out = 0
+    output reg stall = 0,
+
+    output wire [47:0] nsingles
 );
 
     // Extend the reset by at least two clocks to wait for iserdes
     localparam n_rst_ext = 4;
     reg [n_rst_ext-1:0] rst_sr = {n_rst_ext{1'b1}};
-    wire rst_ext = rst | (|rst_sr);
-    always @(posedge clk) rst_sr <= {rst_sr, rst};
+    reg rst_ext = 0;
+
+    always @(posedge clk) begin
+        rst_sr  <= {rst_sr, rst};
+        rst_ext <= rst | (|rst_sr);
+    end
 
     genvar i;
     integer j;
@@ -118,34 +119,58 @@ module detector_iserdes #(
     assign start        = active_any & ~active_any_r;
     wire finish         = active_any_r & ~active_any;
     wire done           = finish & valid_ev & active_all_latch;
+    wire tt_crossed     = period_done & valid_ev & active_all_latch;
     wire data_ack       = data_valid & data_ready;
 
     always @(posedge clk) begin
-        any_energy_bits_r <= any_energy_bits;
-        active_any_r <= active_any;
+        if (rst_ext) begin
+            any_energy_bits_r   <= 0;
+            active_any_r        <= 0;
+            trig_r              <= 0;
+            start_time          <= 0;
+            valid_ev            <= 0;
+            active_all_latch    <= 0;
+            data_valid          <= 0;
+            stall               <= 0;
+        end else begin
+            any_energy_bits_r   <= any_energy_bits;
+            active_any_r        <= active_any;
 
-        // Latch timing info on event starting edge
-        trig_r <= trig;
-        start_time <= (timing_change | rst_ext) ? new_start_time : start_time;
-        period_out <= (timing_change | rst_ext) ? period : period_out;
+            // Latch timing info on event starting edge
+            trig_r      <= trig;
+            start_time  <= timing_change ? new_start_time : start_time;
 
-        // Event valid signals
-        valid_ev <= (valid_ev | timing_change) & ~(finish | rst_ext);
-        active_all_latch <= (active_all_latch | active_all) & ~(finish | rst_ext);
+            // Event valid signals
+            valid_ev            <= (valid_ev | timing_change) & ~finish;
+            active_all_latch    <= (active_all_latch | active_all) & ~finish;
 
-        // Stall a current time tag until event finishes
-        stall <= (stall | (active_any & period_done)) & ~(finish | rst_ext);
-
-        // Data output handshaking
-        data_valid <= (done | data_valid) & ~(data_ack | rst_ext);
+            // Data output handshaking
+            data_valid  <= (done  | data_valid) & ~data_ack;
+            stall       <= (stall | tt_crossed) & ~data_ack;
+        end
     end
 
     assign data_out = {
-        {CRC_BITS{1'b1}},   // Framing bits,         5
-        1'b1,               // Single event flag,    1
-        block_id,           // Identifier,           6
-        energy,             // Energy data,         96
-        start_time          // Timing data,         20
+        {5{1'b1}}, // Framing bits,         5
+        1'b1,      // Single event flag,    1
+        block_id,  // Identifier,           6
+        energy,    // Energy data,         96
+        start_time // Timing data,         20
     };
+
+    /*
+    * Singles rate measurement
+    */
+
+    ADDMACC_MACRO #(
+        .LATENCY(2),
+        .WIDTH_PREADD(2),
+        .WIDTH_PRODUCT(48)
+    ) counter_inst (
+        .LOAD(rst_ext), .LOAD_DATA(0),
+        .MULTIPLIER(1), .PREADD1({1'b0, done}), .PREADD2(0),
+        .RST(rst_ext), .CE(1), .CLK(clk), .CARRYIN(0),
+        .PRODUCT(nsingles)
+    );
 
 endmodule

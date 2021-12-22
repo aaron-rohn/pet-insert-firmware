@@ -11,16 +11,23 @@
 typedef enum {
     RST = 0,
 
-    // frontend commands
+    // frontend commands (1,2,3)
     DAC_WRITE,
     ADC_READ,
     MODULE_ID,
 
-    // backend commands
+    // backend commands (4,5,6,7)
     SET_POWER,
     GET_CURRENT,
     GPIO,
-    NOP
+    NOP,
+
+    // other frontend commands (8,9,A,B,C)
+    DAC_READ,
+    PERIOD_READ,
+    SGL_RATE_READ,
+    GPIO_FRONTEND,
+    RST_FRONTEND
 } cmd_t;
 
 // General values

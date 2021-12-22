@@ -1,14 +1,12 @@
 `timescale 1ns / 1ps
 
 module frontend #(
-    MODULE_ID_BITS = 4,
-    NCH            = 10, 
-    CRC_BITS       = 5,
-    DATA_WIDTH     = 128,
-    LINES          = 3
+    NCH        = 10, 
+    DATA_WIDTH = 128,
+    LINES      = 3
 )(
     output wire config_spi_ncs,
-    input wire [MODULE_ID_BITS - 1:0] module_id,
+    input wire [3:0] module_id,
 
     // timing front, timing rear, A-D front, A-D rear
     input wire [NCH - 1:0] block1,
@@ -37,12 +35,19 @@ module frontend #(
     inout wire SCL
 );
 
+    genvar i;
+
     /*
     * Instantiation of IO buffers and DDR
     */
 
     assign config_spi_ncs = 1;
-    wire sys_clk_in, sys_clk, sys_ctrl_ddr, sys_ctrl, sys_rst, data_clk_ddr;
+    wire sys_clk_in, sys_clk, sys_ctrl_ddr, sys_ctrl, data_clk_ddr;
+
+    // soft_rst comes from ub, hard_rst comes from backend
+    wire soft_rst, hard_rst;
+    reg sys_rst = 0;
+    always @ (posedge sys_clk) sys_rst <= soft_rst | hard_rst;
 
     // System clock input
     IBUFGDS sys_clk_inst  (.I(sys_clk_p), .IB(sys_clk_n), .O(sys_clk_in));
@@ -70,37 +75,48 @@ module frontend #(
         .Q1(), .Q2(sys_ctrl), 
         .D(sys_ctrl_ddr), 
         .C(sys_clk), .CE(1),
-        .S(), .R(0)
+        .S(), .R(sys_rst)
     );
 
     // High speed data clock output
-    ODDR data_clk_oddr (.D1(1'b1), .D2(1'b0), .CE(1'b1), .C(sys_clk), .S(), .R(1'b0), .Q(data_clk_ddr));
+    ODDR data_clk_oddr (.D1(1'b1), .D2(1'b0), .CE(1'b1), .C(sys_clk), .S(), .R(sys_rst), .Q(data_clk_ddr));
     OBUFDS data_clk_obuf (.I(data_clk_ddr), .O(data_clk_p), .OB(data_clk_n));
 
     // High speed data output
     wire [LINES-1:0] data_out, data_ddr_out;
-    genvar i;
     generate for (i = 0; i < LINES; i = i + 1) begin: data_inst_gen
         ODDR #(.DDR_CLK_EDGE("SAME_EDGE")) data_ddr_inst (
             .D1(data_out[i]), .D2(data_out[i]),
             .CE(1'b1), .C(sys_clk),
-            .S(), .R(1'b0),
+            .S(), .R(sys_rst),
             .Q(data_ddr_out[i])
         );
         OBUFDS data_inst (.I(data_ddr_out[i]), .O(data_p[i]), .OB(data_n[i]));
     end endgenerate
+
+    // Time tag counter
     
-    /*
-    * Control logic, including data rx from backend, reset, and ublaze
-    */
+    wire [16:0] counter;
+    wire [47:0] period;
+    wire period_done;
+
+    wire tt_ready, tt_valid, stall;
+    wire [DATA_WIDTH-1:0] tt_data;
+
+    time_counter_iserdes time_tag_inst (
+        .clk(sys_clk), .rst(sys_rst), .module_id(module_id),
+        .valid(tt_valid), .ready(tt_ready), .tt(tt_data), .stall(stall),
+        .counter(counter), .period(period), .period_done(period_done)
+    );
+
+    // Receive data and reset from the backend
 
     wire [31:0] rx_data_in, cmd_data_in;
     wire rx_valid_in, cmd_valid_in, cmd_ready_in;
 
-    // Receive data and reset from the backend
     data_rx #(.LENGTH(32), .LINES(1)) high_speed_rx (
         .clk(sys_clk),
-        .rst(0),
+        .rst(sys_rst),
         .d(sys_ctrl),
         .rx_err(),
         .valid(rx_valid_in),
@@ -108,6 +124,7 @@ module frontend #(
     );
 
     // Split reset signals from data to microblaze
+
     rst_controller_frontend rst_controller_inst (
         .clk(sys_clk),
         .data_in(rx_data_in),
@@ -115,16 +132,43 @@ module frontend #(
         .data_out(cmd_data_in),
         .valid_out(cmd_valid_in),
         .ready_out(cmd_ready_in),
-        .sys_rst(sys_rst)
+        .sys_rst(hard_rst)
     );
 
-    wire cmd_ready_out, cmd_valid_out;
+    // microblaze instance, FSL and GPIO interfaces
+
+    wire cmd_ready, cmd_valid;
     wire [31:0] cmd_data_out;
+
+    wire [31:0] gpio0 = {28'b0, module_id};
+    wire [31:0] gpio1;
+    wire [1:0] sgl_blk_select = gpio1[0 +:  2];
+
+    // 0 - normal operation, timetags are stalled by preceeding events
+    // 1 - timetags are emitted immediately, regardless of events
+    wire disable_tt_stall = gpio1[2];
+
+    // 0 - normal operation, input signals are processed
+    // 1 - input signals are disabled and the detector frontend is held in reset
+    wire disable_inputs = gpio1[3];
+
+    // reset everything except the ublaze
+    assign soft_rst = gpio1[4];
+
+    wire [47:0] sgl_rates [3:0];
+    wire [47:0] sgl_rate = sgl_rates[sgl_blk_select];
 
     low_speed_interfaces_wrapper ublaze_inst (
         .Clk(sys_clk),
-        .rst(sys_rst),
-        .gpio_rtl_0_tri_i({{(32-MODULE_ID_BITS){1'b0}}, module_id}),
+        
+        // only reset based on command from backend
+        .rst(hard_rst),
+
+        .gpio0_tri_i(gpio0),
+        .gpio1_tri_o(gpio1),
+        .gpio2_tri_i(sgl_rate[0 +: 32]),
+        .gpio3_tri_i(period[0 +: 32]),
+
         .iic_rtl_0_scl_io(SCL),
         .iic_rtl_0_sda_io(SDA),
 
@@ -135,9 +179,21 @@ module frontend #(
 
         .txd_tdata(cmd_data_out),
         .txd_tlast(),
-        .txd_tready(cmd_ready_out),
-        .txd_tvalid(cmd_valid_out)
+        .txd_tready(cmd_ready),
+        .txd_tvalid(cmd_valid)
     );
+
+    // Package cmd response data for transmission to backend
+    // Only the bottom 32 bits are routed back to the workstation
+    wire [DATA_WIDTH-1:0] cmd_data = {
+        {5{1'b1}},   // Framing bits     5
+        1'b0,        // Single ev flag   1
+        module_id,   // Module ID        4
+        2'b0,        // Block ID         2
+        1'b1,        // Command flag     1
+        {83{1'b0}},  // Padding          83
+        cmd_data_out // Command data     32
+    };
 
     /*
     * Data transmission to backend, both data generated by the detector and
@@ -145,100 +201,56 @@ module frontend #(
     */
 
     // Manage data generated by the detector and time tags
-    localparam TT = 4;
 
-    reg [3:0] select_rolling;
-    wire [3:0] earlier, select;
-    wire [4:0] ready, valid;
-    wire [DATA_WIDTH-1:0] data [4:0];
-    wire [47:0] period [4:0];
+    wire [3:0] blk_ready, blk_valid;
+    wire [DATA_WIDTH-1:0] blk_data [3:0];
 
-    reg [DATA_WIDTH-1:0] block_data;
-    wire block_valid = |valid;
+    wire fifo_full, fifo_rst_busy;
+    wire fifo_ready = ~(fifo_full | fifo_rst_busy);
+    wire fifo_valid = |{tt_valid, cmd_valid, blk_valid};
 
-    integer k;
-    always @ (*) begin
-        // Priority encoder of output data
-        block_data = 0;
-        for (k = 4; k >= 0; k = k - 1) begin
-            if (valid[k])
-                block_data = data[k];
-        end
+    wire [DATA_WIDTH-1:0] fifo_data = tt_valid     ? tt_data     :
+                                      cmd_valid    ? cmd_data    : 
+                                      blk_valid[0] ? blk_data[0] :
+                                      blk_valid[1] ? blk_data[1] :
+                                      blk_valid[2] ? blk_data[2] :
+                                      blk_valid[3] ? blk_data[3] : 0;
 
-        // Rolling application of OR to select bus - Does a block with
-        // a higher priority have an event waiting?
-        select_rolling[0] = 0;
-        for (k = 1; k < 4; k = k + 1) begin
-            select_rolling[k] = select[k-1] | select_rolling[k-1];
-        end
-    end
+    assign tt_ready     = fifo_ready;
+    assign cmd_ready    = tt_ready     & ~tt_valid;
+    assign blk_ready[0] = cmd_ready    & ~cmd_valid;
+    assign blk_ready[1] = blk_ready[0] & ~blk_valid[0];
+    assign blk_ready[2] = blk_ready[1] & ~blk_valid[1];
+    assign blk_ready[3] = blk_ready[2] & ~blk_valid[2];
 
-    // Time-tag period is encoded in lowest 48 bits
-    assign period[TT] = data[TT][47:0];
-    assign ready[TT]  = ~(|select);
+    wire fifo_empty, tx_ready;
+    wire tx_valid = ~fifo_empty;
+    wire [DATA_WIDTH-1:0] tx_data;
 
-    generate for (i = 0; i < 4; i = i + 1) begin: block_mux
-        // Does an event preceed the most recent time tag?
-        assign earlier[i] = period[i] < period[TT];
-
-        // Does a block contain a valid event, and if there is a time tag
-        // waiting does the event preceed it?
-        assign select[i] = valid[i] & (~valid[TT] | earlier[i]);
-
-        // A block is not ready if there is a time tag valid, unless the
-        // current block is valid and earlier than the time tag. A block
-        // is not valid if a higher priority block has an event waiting
-        assign ready[i] = (~valid[TT] | (valid[i] & earlier[i])) & ~select_rolling[i];
-    end endgenerate
-
-    // Fifo containing time tags and data from detectors
-    wire fifo_mux_empty, fifo_mux_ready;
-    wire fifo_mux_valid = ~fifo_mux_empty;
-    wire [DATA_WIDTH-1:0] fifo_mux_data;
-    
     xpm_fifo_sync #(
         .READ_MODE("fwft"),
         .FIFO_READ_LATENCY(0),
-        .WRITE_DATA_WIDTH(128),
-        .READ_DATA_WIDTH(128)
+        .WRITE_DATA_WIDTH(DATA_WIDTH),
+        .READ_DATA_WIDTH(DATA_WIDTH)
     ) fifo_mux_inst (
-        .full(), .sleep(0), .rst(0),
-        .din(block_data),
-        .wr_en(block_valid),
+        .rst(sys_rst),
+        .wr_rst_busy(fifo_rst_busy),
+        .full(fifo_full),
+        .din(fifo_data),
+        .wr_en(fifo_valid & fifo_ready),
         .wr_clk(sys_clk),
     
-        .empty(fifo_mux_empty),
-        .dout(fifo_mux_data),
-        .rd_en(fifo_mux_valid & fifo_mux_ready)
+        .empty(fifo_empty),
+        .dout(tx_data),
+        .rd_en(tx_valid & tx_ready)
     );
-
-    // Multiplex data from detectors and commands from ublaze
-    // commands have priority
-    wire tx_data_ready, tx_data_valid;
-    wire [DATA_WIDTH-1:0] tx_data_out;
-
-    // Only the bottom 32 bits are routed back to the workstation
-    wire [DATA_WIDTH-1:0] cmd_data_out_packet = {
-        {CRC_BITS{1'b1}},   // Framing bits     5
-        1'b0,               // Single ev flag   1
-        module_id,          // Module ID        4
-        2'b0,               // Block ID         2
-        1'b1,               // Command flag     1
-        {83{1'b0}},         // Padding          83
-        cmd_data_out        // Command data     32
-    };
-
-    assign fifo_mux_ready = tx_data_ready & ~cmd_valid_out;
-    assign cmd_ready_out  = tx_data_ready;
-    assign tx_data_valid  = fifo_mux_valid | cmd_valid_out;
-    assign tx_data_out    = cmd_valid_out ? cmd_data_out_packet : fifo_mux_data;
 
     data_tx high_speed_tx (
         .clk(sys_clk),
-        .rst(0),
-        .valid(tx_data_valid),
-        .ready(tx_data_ready),
-        .data_in(tx_data_out),
+        .rst(sys_rst),
+        .valid(tx_valid),
+        .ready(tx_ready),
+        .data_in(tx_data),
         .d(data_out)
     );
 
@@ -246,38 +258,28 @@ module frontend #(
     * Fast frontend logic
     */
     
-    wire [3:0] stall;
-
-    wire [16:0] curr_counter;
-    wire [47:0] curr_period;
-    wire period_done;
-
-    localparam counter_width = 17;
-    time_counter_iserdes #(.COUNTER(counter_width)) time_tag_inst (
-        .clk(sys_clk), .rst(sys_rst), .module_id(module_id), .stall(|stall),
-        .valid(valid[4]), .ready(ready[4]), .tt(data[4]),
-        .counter(curr_counter), .period(curr_period), .period_done(period_done)
-    );
+    wire [3:0] stall_blk;
+    assign stall = (|stall_blk) & ~disable_tt_stall;
 
     wire [NCH*4-1:0] blocks = {block1, block2, block3, block4};
+
     generate for (i = 0; i < 4; i = i + 1) begin
         wire [1:0] blk_idx = i;
-        detector_iserdes #(.COUNTER(counter_width)) det_inst (
+        detector_iserdes det_inst (
             .sample_clk(clk_frontend),
             .clk(sys_clk),
-            .rst(sys_rst),
+            .rst(sys_rst | disable_inputs),
             .signal(blocks[i*NCH +: NCH]),
             .block_id({module_id, blk_idx}),
-            .stall(stall[i]),
 
-            .counter(curr_counter),
-            .period(curr_period),
+            .counter(counter),
             .period_done(period_done),
 
-            .data_ready(ready[i]),
-            .data_valid(valid[i]),
-            .data_out(data[i]),
-            .period_out(period[i])
+            .data_ready(blk_ready[i]),
+            .data_valid(blk_valid[i]),
+            .data_out(blk_data[i]),
+            .stall(stall_blk[i]),
+            .nsingles(sgl_rates[i])
         );
     end endgenerate
 

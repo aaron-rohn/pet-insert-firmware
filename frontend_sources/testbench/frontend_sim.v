@@ -45,67 +45,57 @@ module frontend_sim();
     end
     
     initial begin
-        #10_000
+        #1_000
         @ (posedge data_rx_ready) begin
             data_tx_valid <= 1;
             cmd_data_in <= 32'hF000_0000; // reset
         end 
         #10 data_tx_valid <= 0;
 
-        #120_000
+        #48_000
         @ (posedge data_rx_ready) begin
             data_tx_valid <= 1;
-            cmd_data_in <= 32'hF000_0000; // reset
+            cmd_data_in <= 32'hF0C0_0000;
         end 
         #10 data_tx_valid <= 0;
-
-        /*
-        #500_000
-        @ (posedge data_rx_ready) begin
-            data_tx_valid <= 1;
-            cmd_data_in <= 32'hf020_0000; // ADC read
-        end 
-        #10 data_tx_valid <= 0;
-        */
     end
     
     initial begin
-        #90_000
+        #95_000
           
         block1_in <= {10{1'b1}};
         block2_in <= {10{1'b1}};
         block3_in <= {10{1'b1}};
         block4_in <= {10{1'b1}};
-        #5000
+        #10_000
         block1_in <= 0;
         block2_in <= 0;
         block3_in <= 0;
         block4_in <= 0;
-        #50_000
+
+        #40_000
         
         block1_in <= {10{1'b1}};
         block2_in <= {10{1'b1}};
         block3_in <= {10{1'b1}};
         block4_in <= {10{1'b1}};
-        #1000
+        #10_000
         block1_in <= 0;
         block2_in <= 0;
         block3_in <= 0;
         block4_in <= 0;
-        #50_000
+
+        #140_000
         
         block1_in <= {10{1'b1}};
         block2_in <= {10{1'b1}};
         block3_in <= {10{1'b1}};
         block4_in <= {10{1'b1}};
-        #1000
+        #10_000
         block1_in <= 0;
         block2_in <= 0;
         block3_in <= 0;
         block4_in <= 0;
-        #50_000
-        
-        $stop;
     end
 
 endmodule
