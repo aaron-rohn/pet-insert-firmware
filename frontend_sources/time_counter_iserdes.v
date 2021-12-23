@@ -12,6 +12,8 @@ module time_counter_iserdes (
     output wire [47:0] period,
     output wire period_done
 );
+    parameter CLK_PER_TT = 17'd99_998;
+
     assign tt = {
         {5{1'b1}}, // Framing bits         5
         1'b0,      // Single event flag    1
@@ -22,7 +24,8 @@ module time_counter_iserdes (
         period     // Time tag counter     48
     };
 
-    timer timer_inst (
+    timer #(.CLK_PER_TT(CLK_PER_TT))
+    timer_inst (
         .clk(clk), .rst(rst),
         .counter(counter), .period(period),
         .period_done(period_done)
@@ -42,7 +45,6 @@ module time_counter_iserdes (
 
     always @ (posedge clk) begin
         rst_r <= rst;
-
         valid_unmask <= (valid_unmask | period_done | rst_done) & ~(valid_ack | rst);
     end
 endmodule

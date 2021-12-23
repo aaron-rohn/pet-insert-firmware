@@ -10,7 +10,9 @@ module frontend_sim();
     reg [9:0] block1_in = 0, block2_in = 0, block3_in = 0, block4_in = 0;
     reg [31:0] cmd_data_in = 0;
 
-    frontend inst (
+    frontend #(
+        //.CLK_PER_TT(17'd998
+    ) inst (
         .module_id(4'b0),
 
         .block1(block1_in),
@@ -45,23 +47,23 @@ module frontend_sim();
     end
     
     initial begin
-        #1_000
+        #10_000
+
         @ (posedge data_rx_ready) begin
             data_tx_valid <= 1;
-            cmd_data_in <= 32'hF000_0000; // reset
+            cmd_data_in <= 32'hF000_0000; // ub reset
         end 
         #10 data_tx_valid <= 0;
 
-        #48_000
+        #10_000
+
         @ (posedge data_rx_ready) begin
             data_tx_valid <= 1;
-            cmd_data_in <= 32'hF0C0_0000;
+            cmd_data_in <= 32'hF0B4_0411; // ub reset
         end 
         #10 data_tx_valid <= 0;
-    end
-    
-    initial begin
-        #95_000
+
+        #20_000
           
         block1_in <= {10{1'b1}};
         block2_in <= {10{1'b1}};
@@ -73,8 +75,16 @@ module frontend_sim();
         block3_in <= 0;
         block4_in <= 0;
 
-        #40_000
-        
+        #10_000
+
+        @ (posedge data_rx_ready) begin
+            data_tx_valid <= 1;
+            cmd_data_in <= 32'hF0B4_0211; // disable tt stall
+        end 
+        #10 data_tx_valid <= 0;
+
+        #20_000
+
         block1_in <= {10{1'b1}};
         block2_in <= {10{1'b1}};
         block3_in <= {10{1'b1}};
@@ -85,8 +95,69 @@ module frontend_sim();
         block3_in <= 0;
         block4_in <= 0;
 
-        #140_000
-        
+        #10_000
+
+        @ (posedge data_rx_ready) begin
+            data_tx_valid <= 1;
+            cmd_data_in <= 32'hF0B4_0210; // enable tt stall
+        end 
+        #10 data_tx_valid <= 0;
+
+        #20_000
+
+        block1_in <= {10{1'b1}};
+        block2_in <= {10{1'b1}};
+        block3_in <= {10{1'b1}};
+        block4_in <= {10{1'b1}};
+        #10_000
+        block1_in <= 0;
+        block2_in <= 0;
+        block3_in <= 0;
+        block4_in <= 0;
+
+        #10_000
+
+        @ (posedge data_rx_ready) begin
+            data_tx_valid <= 1;
+            cmd_data_in <= 32'hF090_0000; // read period (div 0)
+        end 
+        #10 data_tx_valid <= 0;
+
+        #10_000
+
+        @ (posedge data_rx_ready) begin
+            data_tx_valid <= 1;
+            cmd_data_in <= 32'hF090_0001; // read period (div 1)
+        end 
+        #10 data_tx_valid <= 0;
+
+        #10_000
+        @ (posedge data_rx_ready) begin
+            data_tx_valid <= 1;
+            cmd_data_in <= 32'hF0A0_0100; // read blk 1 singles rate (div 0)
+        end 
+        #10 data_tx_valid <= 0;
+
+        #10_000
+
+        #10_000
+
+        @ (posedge data_rx_ready) begin
+            data_tx_valid <= 1;
+            cmd_data_in <= 32'hF0A0_0101; // read blk 1 singles rate (div 1)
+        end 
+        #10 data_tx_valid <= 0;
+
+        #10_000
+
+        @ (posedge data_rx_ready) begin
+            data_tx_valid <= 1;
+            cmd_data_in <= 32'hF0B4_0311; // disable frontend
+        end 
+        #10 data_tx_valid <= 0;
+
+        #20_000
+
         block1_in <= {10{1'b1}};
         block2_in <= {10{1'b1}};
         block3_in <= {10{1'b1}};

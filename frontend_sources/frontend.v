@@ -3,7 +3,8 @@
 module frontend #(
     NCH        = 10, 
     DATA_WIDTH = 128,
-    LINES      = 3
+    LINES      = 3,
+    CLK_PER_TT = 17'd99_998
 )(
     output wire config_spi_ncs,
     input wire [3:0] module_id,
@@ -36,21 +37,26 @@ module frontend #(
 );
 
     genvar i;
+    assign config_spi_ncs = 1;
 
     /*
     * Instantiation of IO buffers and DDR
     */
 
-    assign config_spi_ncs = 1;
-    wire sys_clk_in, sys_clk, sys_ctrl_ddr, sys_ctrl, data_clk_ddr;
-
-    // soft_rst comes from ub, hard_rst comes from backend
-    wire soft_rst, hard_rst;
-    reg sys_rst = 0;
-    always @ (posedge sys_clk) sys_rst <= soft_rst | hard_rst;
-
     // System clock input
+    wire sys_clk_in;
     IBUFGDS sys_clk_inst  (.I(sys_clk_p), .IB(sys_clk_n), .O(sys_clk_in));
+
+    // Reset generation and transfer back to sys_clk_in domain
+    wire sys_clk, ub_rst, tt_rst, pll_rst;
+
+    reg full_rst = 0;
+    always @ (posedge sys_clk) full_rst <= ub_rst | tt_rst;
+
+    xpm_cdc_pulse #(.RST_USED(0)) pll_rst_inst (
+        .src_pulse(ub_rst), .src_clk(sys_clk),
+        .dest_pulse(pll_rst), .dest_clk(sys_clk_in)
+    );
 
     // Generate frontend clock
     // Frontend clock is 4x the system clock, 8 bits for DDR ISERDES
@@ -66,33 +72,61 @@ module frontend #(
         .CLKOUT1(sys_clk),
         .CLKFBIN(clk_frontend_fb),
         .CLKFBOUT(clk_frontend_fb),
-        .RST(1'b0), .LOCKED()
+        .RST(pll_rst), .LOCKED()
     );
-    
+
     // Control data input
+    wire sys_ctrl_ddr, sys_ctrl;
     IBUFDS  sys_ctrl_inst (.I(sys_ctrl_p), .IB(sys_ctrl_n), .O(sys_ctrl_ddr));
     IDDR #(.DDR_CLK_EDGE("SAME_EDGE")) sys_ctrl_iddr_inst (
         .Q1(), .Q2(sys_ctrl), 
         .D(sys_ctrl_ddr), 
         .C(sys_clk), .CE(1),
-        .S(), .R(sys_rst)
+        .S(), .R(ub_rst)
     );
 
     // High speed data clock output
-    ODDR data_clk_oddr (.D1(1'b1), .D2(1'b0), .CE(1'b1), .C(sys_clk), .S(), .R(sys_rst), .Q(data_clk_ddr));
+    wire data_clk_ddr;
+    ODDR data_clk_oddr (.D1(1'b1), .D2(1'b0), .CE(1'b1), .C(sys_clk), .S(), .R(ub_rst), .Q(data_clk_ddr));
     OBUFDS data_clk_obuf (.I(data_clk_ddr), .O(data_clk_p), .OB(data_clk_n));
 
     // High speed data output
-    wire [LINES-1:0] data_out, data_ddr_out;
+    wire [LINES-1:0] data_out;
     generate for (i = 0; i < LINES; i = i + 1) begin: data_inst_gen
+
+        wire data_ddr_out;
         ODDR #(.DDR_CLK_EDGE("SAME_EDGE")) data_ddr_inst (
             .D1(data_out[i]), .D2(data_out[i]),
             .CE(1'b1), .C(sys_clk),
-            .S(), .R(sys_rst),
-            .Q(data_ddr_out[i])
+            .S(), .R(ub_rst),
+            .Q(data_ddr_out)
         );
-        OBUFDS data_inst (.I(data_ddr_out[i]), .O(data_p[i]), .OB(data_n[i]));
+
+        OBUFDS data_inst (.I(data_ddr_out), .O(data_p[i]), .OB(data_n[i]));
     end endgenerate
+
+    // Receive data and reset from the backend
+
+    wire [31:0] rx_data_in, cmd_data_in;
+    wire rx_valid_in, cmd_valid_in, cmd_ready_in;
+
+    data_rx #(.LENGTH(32), .LINES(1)) high_speed_rx (
+        .clk(sys_clk),
+        .rst(ub_rst),
+        .d(sys_ctrl),
+        .rx_err(),
+        .valid(rx_valid_in),
+        .data(rx_data_in)
+    );
+
+    // Split reset signals from data to microblaze
+
+    rst_controller_frontend
+    rst_controller_inst (
+        .clk(sys_clk), .rst(ub_rst), .rst_out(tt_rst),
+        .data_in(rx_data_in), .valid_in(rx_valid_in),
+        .data(cmd_data_in), .valid(cmd_valid_in), .ready(cmd_ready_in)
+    );
 
     // Time tag counter
     
@@ -103,36 +137,11 @@ module frontend #(
     wire tt_ready, tt_valid, stall;
     wire [DATA_WIDTH-1:0] tt_data;
 
-    time_counter_iserdes time_tag_inst (
-        .clk(sys_clk), .rst(sys_rst), .module_id(module_id),
+    time_counter_iserdes #(.CLK_PER_TT(CLK_PER_TT))
+    time_tag_inst (
+        .clk(sys_clk), .rst(full_rst), .module_id(module_id),
         .valid(tt_valid), .ready(tt_ready), .tt(tt_data), .stall(stall),
         .counter(counter), .period(period), .period_done(period_done)
-    );
-
-    // Receive data and reset from the backend
-
-    wire [31:0] rx_data_in, cmd_data_in;
-    wire rx_valid_in, cmd_valid_in, cmd_ready_in;
-
-    data_rx #(.LENGTH(32), .LINES(1)) high_speed_rx (
-        .clk(sys_clk),
-        .rst(sys_rst),
-        .d(sys_ctrl),
-        .rx_err(),
-        .valid(rx_valid_in),
-        .data(rx_data_in)
-    );
-
-    // Split reset signals from data to microblaze
-
-    rst_controller_frontend rst_controller_inst (
-        .clk(sys_clk),
-        .data_in(rx_data_in),
-        .valid_in(rx_valid_in),
-        .data_out(cmd_data_in),
-        .valid_out(cmd_valid_in),
-        .ready_out(cmd_ready_in),
-        .sys_rst(hard_rst)
     );
 
     // microblaze instance, FSL and GPIO interfaces
@@ -156,16 +165,14 @@ module frontend #(
     wire disable_inputs = gpio1[3];
 
     // reset everything except the ublaze
-    assign soft_rst = gpio1[4];
+    assign ub_rst = gpio1[4];
 
     wire [47:0] sgl_rates [3:0];
     wire [47:0] sgl_rate = sgl_rates[sgl_blk_select];
 
     low_speed_interfaces_wrapper ublaze_inst (
         .Clk(sys_clk),
-        
-        // only reset based on command from backend
-        .rst(hard_rst),
+        .rst(ub_rst),
 
         .gpio0_tri_i(gpio0),
         .gpio1_tri_o(gpio1),
@@ -208,8 +215,8 @@ module frontend #(
     wire [3:0] blk_ready, blk_valid;
     wire [DATA_WIDTH-1:0] blk_data [3:0];
 
-    wire fifo_full, fifo_rst_busy;
-    wire fifo_ready = ~(fifo_full | fifo_rst_busy);
+    wire fifo_full, fifo_wrst_busy, fifo_rrst_busy;
+    wire fifo_ready = ~(fifo_full | fifo_wrst_busy);
     wire fifo_valid = |{tt_valid, cmd_valid, blk_valid};
 
     wire [DATA_WIDTH-1:0] fifo_data = tt_valid     ? tt_data     :
@@ -227,7 +234,7 @@ module frontend #(
     assign blk_ready[3] = blk_ready[2] & ~blk_valid[2];
 
     wire fifo_empty, tx_ready;
-    wire tx_valid = ~fifo_empty;
+    wire tx_valid = ~(fifo_empty | fifo_rrst_busy);
     wire [DATA_WIDTH-1:0] tx_data;
 
     xpm_fifo_sync #(
@@ -236,12 +243,14 @@ module frontend #(
         .WRITE_DATA_WIDTH(DATA_WIDTH),
         .READ_DATA_WIDTH(DATA_WIDTH)
     ) fifo_mux_inst (
-        .rst(sys_rst),
-        .wr_rst_busy(fifo_rst_busy),
+        .wr_clk(sys_clk),
+        .rst(full_rst),
+        .wr_rst_busy(fifo_wrst_busy),
+        .rd_rst_busy(fifo_rrst_busy),
+
         .full(fifo_full),
         .din(fifo_data),
         .wr_en(fifo_valid & fifo_ready),
-        .wr_clk(sys_clk),
     
         .empty(fifo_empty),
         .dout(tx_data),
@@ -250,7 +259,7 @@ module frontend #(
 
     data_tx high_speed_tx (
         .clk(sys_clk),
-        .rst(sys_rst),
+        .rst(full_rst),
         .valid(tx_valid),
         .ready(tx_ready),
         .data_in(tx_data),
@@ -271,7 +280,7 @@ module frontend #(
         detector_iserdes det_inst (
             .sample_clk(clk_frontend),
             .clk(sys_clk),
-            .rst(sys_rst | disable_inputs),
+            .rst(full_rst | disable_inputs),
             .signal(blocks[i*NCH +: NCH]),
             .block_id({module_id, blk_idx}),
             .counter(counter),

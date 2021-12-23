@@ -6,7 +6,7 @@ module timer (
     output reg period_done
 );
     // 1 ms - subtract 2 clocks for addmacc latency
-    localparam clk_per_tt = 17'd99_998;
+    parameter CLK_PER_TT = 17'd99_998;
 
     reg period_done_a = 0, period_done_b = 0, period_done_c = 0;
     wire [16:0] counter_a;
@@ -40,7 +40,7 @@ module timer (
             period_done     <= 0;
             counter         <= 0;
         end else begin
-            period_done_a   <= (counter_a == clk_per_tt);
+            period_done_a   <= (counter_a == CLK_PER_TT);
             period_done_b   <= period_done_a;
             period_done_c   <= period_done_b;
             period_done     <= period_done_c;

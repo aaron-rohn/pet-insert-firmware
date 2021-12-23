@@ -22,12 +22,11 @@ typedef enum {
     GPIO,
     NOP,
 
-    // other frontend commands (8,9,A,B,C)
+    // other frontend commands (8,9,A,B)
     DAC_READ,
     PERIOD_READ,
     SGL_RATE_READ,
-    GPIO_FRONTEND,
-    RST_FRONTEND
+    GPIO_FRONTEND
 } cmd_t;
 
 // General values

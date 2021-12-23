@@ -155,12 +155,6 @@ int main()
                 value = (value >> GPIO_OFF(cmd_buf)) & GPIO_MASK(cmd_buf);
                 break;
 
-            case RST_FRONTEND:
-                // Toggle soft_rst signal
-                GPIO_SET(GPIO_1, 1, 1, SOFT_RST);
-                GPIO_SET(GPIO_1, 0, 1, SOFT_RST);
-                break;
-
             default: break;
         }
 
