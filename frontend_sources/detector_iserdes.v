@@ -113,14 +113,24 @@ module detector_iserdes #(
 
     reg [1:0] trig_r = 0;
     reg [19:0] start_time = 0;
-    reg active_any_r = 0, active_all_latch = 0, valid_ev = 0;
+    reg active_any_r = 0, active_all_latch = 0, timing_latch = 0;
 
-    wire timing_change  = |(trig & ~trig_r) & ~valid_ev;
-    assign start        = active_any & ~active_any_r;
-    wire finish         = active_any_r & ~active_any;
-    wire done           = finish & valid_ev & active_all_latch;
-    wire tt_crossed     = period_done & valid_ev & active_all_latch;
-    wire data_ack       = data_valid & data_ready;
+    // pulse indicates a rising edge on one of the timing channels
+    wire timing = |(trig & ~trig_r) & ~timing_latch;
+
+    // pulse indicates the first rising and last falling energy channel
+    assign start = active_any & ~active_any_r;
+    wire finish = active_any_r & ~active_any;
+
+    // pulse indicates that a validated event (timing + 8 energies) has completed 
+    wire done = finish & timing_latch & active_all_latch;
+
+    // pulse indicates that a time tag would have been emitted during
+    // a validated event. used to stall the time tag emission
+    wire tt_crossed = period_done & timing_latch & active_all_latch;
+
+    // indicates that data is read from the module
+    wire data_ack = data_valid & data_ready;
 
     always @(posedge clk) begin
         if (rst_ext) begin
@@ -128,21 +138,23 @@ module detector_iserdes #(
             active_any_r        <= 0;
             trig_r              <= 0;
             start_time          <= 0;
-            valid_ev            <= 0;
+            timing_latch        <= 0;
             active_all_latch    <= 0;
             data_valid          <= 0;
             stall               <= 0;
         end else begin
             any_energy_bits_r   <= any_energy_bits;
             active_any_r        <= active_any;
+            trig_r              <= trig;
 
             // Latch timing info on event starting edge
-            trig_r      <= trig;
-            start_time  <= timing_change ? new_start_time : start_time;
+            start_time  <= timing ? new_start_time : start_time;
 
-            // Event valid signals
-            valid_ev            <= (valid_ev | timing_change) & ~finish;
-            active_all_latch    <= (active_all_latch | active_all) & ~finish;
+            // Latch if the timing signal went high before/during the event
+            timing_latch <= (timing_latch | timing) & ~finish;
+
+            // Latch if all channels went high during the event
+            active_all_latch <= (active_all_latch | active_all) & ~finish;
 
             // Data output handshaking
             data_valid  <= (done  | data_valid) & ~data_ack;

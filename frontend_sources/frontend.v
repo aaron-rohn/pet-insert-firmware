@@ -140,7 +140,10 @@ module frontend #(
     wire cmd_ready, cmd_valid;
     wire [31:0] cmd_data_out;
 
+    // input gpio bank
     wire [31:0] gpio0 = {28'b0, module_id};
+
+    //output gpio bank
     wire [31:0] gpio1;
     wire [1:0] sgl_blk_select = gpio1[0 +:  2];
 
@@ -255,7 +258,7 @@ module frontend #(
     );
 
     /*
-    * Fast frontend logic
+    * Detector logic
     */
     
     wire [3:0] stall_blk;
@@ -271,10 +274,8 @@ module frontend #(
             .rst(sys_rst | disable_inputs),
             .signal(blocks[i*NCH +: NCH]),
             .block_id({module_id, blk_idx}),
-
             .counter(counter),
             .period_done(period_done),
-
             .data_ready(blk_ready[i]),
             .data_valid(blk_valid[i]),
             .data_out(blk_data[i]),

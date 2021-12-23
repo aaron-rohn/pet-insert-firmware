@@ -30,6 +30,8 @@ module timer (
         .PRODUCT(period)
     );
 
+    // Account for latency between counter and period due to addmacc
+
     always @ (posedge clk) begin
         if (rst) begin
             period_done_a   <= 0;
