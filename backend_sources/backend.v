@@ -123,7 +123,7 @@ module backend #(
                 wire falling_edge_data;
                 IDDR #(.DDR_CLK_EDGE("SAME_EDGE")) m_data_iddr_inst (
                     .Q1(), .Q2(falling_edge_data), .D(m_data_in_ddr[i*LINES+j]), 
-                    .C(m_data_clk[i]), .CE(1'b1), .S(), .R(soft_rst));
+                    .C(m_data_clk[i]), .CE(1'b1), .S(), .R(1'b0));
 
                 // module 2 line 0 (pads D5 and D6) are inverted on the schematic - flip it back to the correct polarity here
                 if (i == 2 && j == 0) begin

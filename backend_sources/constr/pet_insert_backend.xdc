@@ -34,10 +34,10 @@ create_clock -period 10 [get_ports clk_100_p]
 
 ### Module Ports ###
 
-set_property -dict {IOSTANDARD LVCMOS25 PACKAGE_PIN J16} [get_ports m_en[0]]
-set_property -dict {IOSTANDARD LVCMOS25 PACKAGE_PIN R11} [get_ports m_en[1]]
-set_property -dict {IOSTANDARD LVCMOS25 PACKAGE_PIN B12} [get_ports m_en[2]]
-set_property -dict {IOSTANDARD LVCMOS25 PACKAGE_PIN G15} [get_ports m_en[3]]
+set_property -dict {IOSTANDARD LVCMOS25 DRIVE 16 PACKAGE_PIN J16} [get_ports m_en[0]]
+set_property -dict {IOSTANDARD LVCMOS25 DRIVE 16 PACKAGE_PIN R11} [get_ports m_en[1]]
+set_property -dict {IOSTANDARD LVCMOS25 DRIVE 16 PACKAGE_PIN B12} [get_ports m_en[2]]
+set_property -dict {IOSTANDARD LVCMOS25 DRIVE 16 PACKAGE_PIN G15} [get_ports m_en[3]]
 
 # clocks to frontend
 set_property -dict {IOSTANDARD LVDS_25 PACKAGE_PIN K13} [get_ports m_clk_p[0]]
