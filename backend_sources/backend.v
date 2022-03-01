@@ -93,20 +93,18 @@ module backend #(
         for (i = 0; i < NMODULES; i = i + 1) begin: frontend_port_inst
             // Clock output to frontend
             ODDR m_clk_oddr_inst (
-                .D1(1'b1), .D2(1'b0), .CE(m_en[i]), .C(clk_100), 
+                .D1(1'b1), .D2(1'b0), .CE(1'b1), .C(clk_100), 
                 .S(), .R(soft_rst), .Q(m_clk_ddr[i]));
             OBUFTDS m1_clk_obuf_inst (.T(~m_en[i]), .I(m_clk_ddr[i]), .O(m_clk_p[i]), .OB(m_clk_n[i]));
 
             // Control output to frontend
             ODDR #(.DDR_CLK_EDGE("SAME_EDGE")) m_ctrl_oddr_inst (
-                .D1(m_ctrl[i]), .D2(m_ctrl[i]), .CE(m_en[i]), .C(clk_100),
+                .D1(m_ctrl[i]), .D2(m_ctrl[i]), .CE(1'b1), .C(clk_100),
                 .S(), .R(soft_rst), .Q(m_ctrl_ddr[i]));
             OBUFTDS m_ctrl_obuf_inst (.T(~m_en[i]), .I(m_ctrl_ddr[i]), .O(m_ctrl_p[i]), .OB(m_ctrl_n[i]));    
 
             // Data clock from frontend
-            wire data_clk_ungated;
-            IBUFGDS m_data_clk_inst (.I(m_data_clk_p[i]), .IB(m_data_clk_n[i]), .O(data_clk_ungated));
-            BUFGCE m_data_clk_gate_inst (.I(data_clk_ungated), .O(m_data_clk[i]), .CE(m_en[i]));
+            IBUFGDS m_data_clk_inst (.I(m_data_clk_p[i]), .IB(m_data_clk_n[i]), .O(m_data_clk[i]));
 
             // Data lines from frontend
             // module 1: 0-2
@@ -114,8 +112,7 @@ module backend #(
             // module 3: 6-8
             // module 4: 9-11
             for (j = 0; j < LINES; j = j + 1) begin: frontend_data_inst
-                IBUFDS_IBUFDISABLE m_data_inst (
-                    .IBUFDISABLE(~m_en[i]),
+                IBUFDS m_data_inst (
                     .I(m_data_p[i*LINES+j]), 
                     .IB(m_data_n[i*LINES+j]), 
                     .O(m_data_in_ddr[i*LINES+j]));
