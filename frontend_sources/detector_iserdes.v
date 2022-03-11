@@ -162,6 +162,17 @@ module detector_iserdes #(
         end
     end
 
+    /*
+    * energy[ 0:11] -> A_FRONT
+    * energy[12:23] -> B_FRONT
+    * energy[24:35] -> C_FRONT
+    * energy[36:47] -> D_FRONT
+    * energy[48:59] -> A_REAR
+    * energy[60:71] -> B_REAR
+    * energy[72:83] -> C_REAR
+    * energy[84:95] -> D_REAR
+    */
+
     assign data_out = {
         {5{1'b1}}, // Framing bits,         5
         1'b1,      // Single event flag,    1

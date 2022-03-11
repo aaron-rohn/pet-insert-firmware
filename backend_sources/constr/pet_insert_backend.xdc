@@ -1,5 +1,5 @@
 set_property BITSTREAM.GENERAL.COMPRESS TRUE [current_design]
-set_property BITSTREAM.CONFIG.CONFIGRATE 6 [current_design]
+set_property BITSTREAM.CONFIG.CONFIGRATE 3 [current_design]
 set_property CONFIG_MODE SPIx1 [current_design]
 set_property BITSTREAM.CONFIG.SPI_BUSWIDTH 1 [current_design]
 set_property BITSTREAM.CONFIG.SPI_FALL_EDGE YES [current_design]
