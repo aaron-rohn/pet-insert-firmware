@@ -61,6 +61,7 @@ module detector_iserdes #(
         assign trig[i] = |ch;
 
         // Find the number of places before the first set bit
+        // Bit 0 occurs last, bit 7 occurs first
         always @(*) begin
             trig_idx[i] = 7;
             for (j = 0; j < 8; j = j + 1) begin
@@ -74,16 +75,16 @@ module detector_iserdes #(
     */
 
     wire start;
-    wire [7:0] any_energy_bits, active; 
-    reg [7:0] any_energy_bits_r = 0;
-    assign active = any_energy_bits | any_energy_bits_r;
+    wire [7:0] ch_all, active; 
+    reg [7:0] ch_all_r = 0;
+    assign active = ch_all | ch_all_r;
     wire active_any = |active;
     wire active_all = &active;
     wire [95:0] energy;
 
     generate for (i = 0; i < 8; i = i + 1) begin
         wire [7:0] ch = data[i + 2];
-        assign any_energy_bits[i] = |ch;
+        assign ch_all[i] = &ch;
 
         // Count the number of bits set
         reg [4:0] nbits = 0;
@@ -134,7 +135,7 @@ module detector_iserdes #(
 
     always @(posedge clk) begin
         if (rst_ext) begin
-            any_energy_bits_r   <= 0;
+            ch_all_r            <= 0;
             active_any_r        <= 0;
             trig_r              <= 0;
             start_time          <= 0;
@@ -143,7 +144,7 @@ module detector_iserdes #(
             data_valid          <= 0;
             stall               <= 0;
         end else begin
-            any_energy_bits_r   <= any_energy_bits;
+            ch_all_r            <= ch_all;
             active_any_r        <= active_any;
             trig_r              <= trig;
 

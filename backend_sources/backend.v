@@ -157,7 +157,6 @@ module backend #(
     wire [CMD_LEN-1:0] ub_m_cmd_data [NMODULES-1:0];
     wire [CMD_LEN-1:0] m_ub_cmd_data [NMODULES-1:0];
 
-    //wire [(CMD_LEN*NMODULES)-1:0] m_ub_cmd_data, ub_m_cmd_data;
     wire [NMODULES-1:0] m_ub_cmd_valid, ub_m_cmd_valid, m_ub_cmd_ready, ub_m_cmd_ready;
 
     low_speed_interface_wrapper low_speed_inst (
@@ -176,52 +175,44 @@ module backend #(
         .spi_miso(gigex_spi_miso),
 
         // Module 0
-        //.m0_in_tdata(m_ub_cmd_data[0*CMD_LEN +: CMD_LEN]),
         .m0_in_tdata(m_ub_cmd_data[0]),
         .m0_in_tlast(0),
         .m0_in_tready(m_ub_cmd_ready[0]),
         .m0_in_tvalid(m_ub_cmd_valid[0]),
 
-        //.m0_out_tdata(ub_m_cmd_data[0*CMD_LEN +: CMD_LEN]),
         .m0_out_tdata(ub_m_cmd_data[0]),
         .m0_out_tlast(),
         .m0_out_tready(ub_m_cmd_ready[0]),
         .m0_out_tvalid(ub_m_cmd_valid[0]),
 
         // Module 1
-        //.m1_in_tdata(m_ub_cmd_data[1*CMD_LEN +: CMD_LEN]),
         .m1_in_tdata(m_ub_cmd_data[1]),
         .m1_in_tlast(0),
         .m1_in_tready(m_ub_cmd_ready[1]),
         .m1_in_tvalid(m_ub_cmd_valid[1]),
 
-        //.m1_out_tdata(ub_m_cmd_data[1*CMD_LEN +: CMD_LEN]),
         .m1_out_tdata(ub_m_cmd_data[1]),
         .m1_out_tlast(),
         .m1_out_tready(ub_m_cmd_ready[1]),
         .m1_out_tvalid(ub_m_cmd_valid[1]),
 
         // Module 2
-        //.m2_in_tdata(m_ub_cmd_data[2*CMD_LEN +: CMD_LEN]),
         .m2_in_tdata(m_ub_cmd_data[2]),
         .m2_in_tlast(0),
         .m2_in_tready(m_ub_cmd_ready[2]),
         .m2_in_tvalid(m_ub_cmd_valid[2]),
 
-        //.m2_out_tdata(ub_m_cmd_data[2*CMD_LEN +: CMD_LEN]),
         .m2_out_tdata(ub_m_cmd_data[2]),
         .m2_out_tlast(),
         .m2_out_tready(ub_m_cmd_ready[2]),
         .m2_out_tvalid(ub_m_cmd_valid[2]),
 
         // Module 3
-        //.m3_in_tdata(m_ub_cmd_data[3*CMD_LEN +: CMD_LEN]),
         .m3_in_tdata(m_ub_cmd_data[3]),
         .m3_in_tlast(0),
         .m3_in_tready(m_ub_cmd_ready[3]),
         .m3_in_tvalid(m_ub_cmd_valid[3]),
 
-        //.m3_out_tdata(ub_m_cmd_data[3*CMD_LEN +: CMD_LEN]),
         .m3_out_tdata(ub_m_cmd_data[3]),
         .m3_out_tlast(),
         .m3_out_tready(ub_m_cmd_ready[3]),
@@ -250,7 +241,6 @@ module backend #(
 
             .cmd_in_valid(ub_m_cmd_valid[i]),
             .cmd_in_ready(ub_m_cmd_ready[i]),
-            //.cmd_in(ub_m_cmd_data[i*CMD_LEN +: CMD_LEN]),
             .cmd_in(ub_m_cmd_data[i]),
 
             .cmd_out_ready(tx_ready),
@@ -344,7 +334,6 @@ module backend #(
         );
 
         wire [LENGTH-1:0] m_ub_cmd_data_full;
-        //assign m_ub_cmd_data[i*CMD_LEN +: CMD_LEN] = m_ub_cmd_data_full[0 +: CMD_LEN];
         assign m_ub_cmd_data[i] = m_ub_cmd_data_full[0 +: CMD_LEN];
 
         xpm_fifo_async #(

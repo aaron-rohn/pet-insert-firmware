@@ -26,7 +26,10 @@ typedef enum {
     DAC_READ,
     PERIOD_READ,
     SGL_RATE_READ,
-    GPIO_FRONTEND
+    GPIO_FRONTEND,
+
+    // indicate that a reply is pending from the frontend
+    CMD_RESPONSE = 0xF
 } cmd_t;
 
 // General values

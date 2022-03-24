@@ -22,8 +22,6 @@ int main()
 
         if (IS_CMD(cmd))
 		{
-            SPI_WRITE(0);
-
             cmd_t c = CMD_COMMAND(cmd);
             uint32_t value = 0;
 

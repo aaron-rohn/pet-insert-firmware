@@ -38,10 +38,10 @@ proc build { ws_path src_path inc_path } {
 #      {/home/aaron/insert/src/ub/sync_src /home/aaron/insert/src/ub/common} \
 #      /home/aaron/insert/src/ub/include
 
-#build /home/aaron/insert/ub/backend \
-#      {/home/aaron/insert/src/ub/backend_src /home/aaron/insert/src/ub/common} \
-#      /home/aaron/insert/src/ub/include
-
-build /home/aaron/insert/ub/frontend \
-      {/home/aaron/insert/src/ub/frontend_src /home/aaron/insert/src/ub/common} \
+build /home/aaron/insert/ub/backend \
+      {/home/aaron/insert/src/ub/backend_src /home/aaron/insert/src/ub/common} \
       /home/aaron/insert/src/ub/include
+
+#build /home/aaron/insert/ub/frontend \
+#      {/home/aaron/insert/src/ub/frontend_src /home/aaron/insert/src/ub/common} \
+#      /home/aaron/insert/src/ub/include
