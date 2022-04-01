@@ -32,7 +32,7 @@ int main()
         if (IS_CMD(cmd))
         {
             cmd_t c = CMD_COMMAND(cmd);
-            uint32_t value = 0, cmd_to_forward = 0;
+            uint32_t value = 0;
 
             switch (c)
             {
@@ -47,20 +47,19 @@ int main()
                     cmd = handle_current(cmd);
                     break;
 
+                case COUNTER_READ:
+                    cmd = handle_counter(cmd);
+                    break;
+
                 default:
                     // forward the command to the indicated module
-                    cmd_to_forward = cmd;
                     value = CMD_MODULE_LOWER(cmd);
-                    cmd = CMD_BUILD(value, CMD_RESPONSE, 0);
-
-                    if MODULE_PWR_IS_SET(value)
-                    {
-                        putdfslx(cmd_to_forward, value, FSL_DEFAULT);
-                        cmd |= 1;
-                    }
-                    break;
+                    putdfslx(cmd, value, FSL_DEFAULT);
+                    cmd = CMD_BUILD(
+                            value,
+                            CMD_RESPONSE,
+                            MODULE_PWR_IS_SET(value));
             }
-
             SPI_WRITE(cmd);
         }
 

@@ -62,17 +62,29 @@ module backend #(
     output wire gigex_spi_miso
 );
 
-    genvar i, j;
+    // System clock and reset
+    wire clk_100, hard_rst, soft_rst_ub;
+    reg soft_rst = 0, soft_rst_ub_r = 0, soft_rst_ub_edge = 0;
+    reg [9:0] soft_rst_sr = 0;
+
+    // Only capture the edge of the soft_rst_ub signal
+    // Extend any rst event to 10 clocks minimum
+    always @(posedge clk_100) begin
+        soft_rst_ub_r       <= soft_rst_ub;
+        soft_rst_ub_edge    <= soft_rst_ub & ~soft_rst_ub_r;
+        soft_rst_sr         <= {soft_rst_sr, soft_rst_ub_edge | hard_rst};
+        soft_rst            <= |soft_rst_sr;
+    end
 
     /*
     * IO Port instantiation
     */
 
+    genvar i, j;
+
     assign config_spi_ncs = 1;
     
-    // System clock and reset
-    wire clk_100, sys_rst_ddr, sys_rst, soft_rst;
-
+    wire sys_rst_ddr, sys_rst;
     IBUFGDS sys_clk_inst (.I(sys_clk_p), .IB(sys_clk_n), .O(clk_100));
     IBUFDS sys_rst_inst (.I(sys_rst_p), .IB(sys_rst_n), .O(sys_rst_ddr));
 
@@ -91,10 +103,10 @@ module backend #(
     wire [LINES*NMODULES-1:0] m_data_in, m_data_in_ddr;
     generate
         for (i = 0; i < NMODULES; i = i + 1) begin: frontend_port_inst
-            // Clock output to frontend
+            // Clock output to frontend (don't reset)
             ODDR m_clk_oddr_inst (
                 .D1(1'b1), .D2(1'b0), .CE(1'b1), .C(clk_100), 
-                .S(), .R(soft_rst), .Q(m_clk_ddr[i]));
+                .S(), .R(1'b0), .Q(m_clk_ddr[i]));
             OBUFTDS m1_clk_obuf_inst (.T(~m_en[i]), .I(m_clk_ddr[i]), .O(m_clk_p[i]), .OB(m_clk_n[i]));
 
             // Control output to frontend
@@ -138,30 +150,56 @@ module backend #(
     */
 
     localparam CMD_LEN = 32;
+    wire [31:0] gpio_i, gpio_o;
 
-    wire [NMODULES-1:0] rx_err, rx_toggling, tx_idle;
-    
-    wire [31:0] gpio_i;
-    assign gpio_i[0 +: NMODULES] = rx_err | ~rx_toggling;
-    assign gpio_i[NMODULES +: NMODULES] = tx_idle;
-    assign gpio_i[31:(2*NMODULES)] = 0;
-
-    wire [31:0] gpio_o;
-    assign soft_rst         = gpio_o[0];
+    assign soft_rst_ub      = gpio_o[0];
     assign status_fpga      = gpio_o[1];
     assign status_network   = gpio_o[2];
+    assign hard_rst         = gpio_o[3];
     assign m_en             = gpio_o[7:4];
 
     assign status_modules   = |m_en;
 
+    // select, read, and reset event, timetag, cmd counters
+
+    localparam EV_COUNTER_WIDTH = 48, EV_COUNTER_CHAN = 3;
+    wire [EV_COUNTER_WIDTH-1:0] event_counters [NMODULES-1:0][EV_COUNTER_CHAN-1:0];
+
+    // module_select -> pick a module 0-3 to read
+    // channel_select -> pick singles, tt, or cmd rate for the module
+    // channel_load_ub -> reset a counter for the selected module
+    wire [1:0] module_select  = gpio_o[8  +: 2];
+    wire [1:0] channel_select = gpio_o[10 +: 2];
+    wire [EV_COUNTER_CHAN-1:0] channel_load_ub = gpio_o[12 +: 3];
+
+    // multiplex the load signal to all 4 modules
+
+    reg [EV_COUNTER_CHAN-1:0] channel_load_all [NMODULES-1:0];
+
+    integer k;
+    always @(*) begin
+        for (k = 0; k < NMODULES; k = k + 1) begin
+            channel_load_all[k] <= (module_select == k) ?
+                channel_load_ub : 0;
+        end
+    end
+
+    // assign the selected counter value to the gpio input
+    assign gpio_i =
+        event_counters[module_select][channel_select][0 +: 32];
+
+
+    // nets connecting to and from frontend data
+
     wire [CMD_LEN-1:0] ub_m_cmd_data [NMODULES-1:0];
     wire [CMD_LEN-1:0] m_ub_cmd_data [NMODULES-1:0];
-
     wire [NMODULES-1:0] m_ub_cmd_valid, ub_m_cmd_valid, m_ub_cmd_ready, ub_m_cmd_ready;
+
+    // instantiate microblaze
 
     low_speed_interface_wrapper low_speed_inst (
         .clk(clk_100),
-        .rst(soft_rst),
+        .rst(hard_rst),
 
         .gpio_i_tri_i(gpio_i),
         .gpio_o_tri_o(gpio_o),
@@ -250,7 +288,7 @@ module backend #(
         data_tx #(.LENGTH(CMD_LEN), .LINES(1)) m_tx_inst (
             .clk(clk_100),
             .rst(soft_rst | sys_rst_valid),
-            .idle(tx_idle[i]),
+            .idle(),
 
             .valid(tx_valid),
             .ready(tx_ready),
@@ -265,76 +303,101 @@ module backend #(
     * RX controller and fifo
     */
 
-    wire [NMODULES-1:0] m_data_ready, m_data_valid, m_data_ack;
+    // Multiplex ready, valid, and data signals for 4 blocks
+
+    wire [NMODULES-1:0] m_data_ready, m_data_valid;
     wire [LENGTH-1:0] m_data_out [NMODULES-1:0];
 
-    assign m_data_ack = m_data_valid & m_data_ready;
-    
-    assign m_data_ready = {
-        1'b1,
-        ~(|m_data_valid[0 +: 1]),
-        ~(|m_data_valid[0 +: 2]),
-        ~(|m_data_valid[0 +: 3])
-    };
+    wire m_data_mux_ready;
+    wire m_data_mux_valid = |m_data_valid;
+
+    assign m_data_ready[0] = m_data_mux_ready;
+    assign m_data_ready[1] = m_data_ready[0] & ~m_data_valid[0];
+    assign m_data_ready[2] = m_data_ready[1] & ~m_data_valid[1];
+    assign m_data_ready[3] = m_data_ready[2] & ~m_data_valid[2];
 
     wire [LENGTH-1:0] m_data_mux =
-        m_data_ack[0] ? m_data_out[0] :
-        m_data_ack[1] ? m_data_out[1] :
-        m_data_ack[2] ? m_data_out[2] :
-        m_data_ack[3] ? m_data_out[3] : {LENGTH{1'b0}};
+        m_data_valid[0] ? m_data_out[0] :
+        m_data_valid[1] ? m_data_out[1] :
+        m_data_valid[2] ? m_data_out[2] :
+        m_data_valid[3] ? m_data_out[3] : {LENGTH{1'b0}};
 
     // Per-module rx controller and fifos
     generate for (i = 0; i < NMODULES; i = i + 1) begin: rx_side_inst
 
-        wire m_rx_valid, m_rx_err;
+        wire m_rx_valid;
         wire [LENGTH-1:0] m_rx_data;
 
         localparam SGL_FLAG_OFFSET = 122, CMD_FLAG_OFFSET = 115;
-        wire data_is_cmd = ~m_rx_data[SGL_FLAG_OFFSET] & m_rx_data[CMD_FLAG_OFFSET];
+        wire sgl_flag = m_rx_data[SGL_FLAG_OFFSET];
+        wire cmd_flag = m_rx_data[CMD_FLAG_OFFSET];
+        wire data_is_cmd = cmd_flag & ~sgl_flag;
+        wire data_is_tt  = ~(cmd_flag | sgl_flag);
 
-        clk_toggling clk_toggling_inst (
-            .clk(m_data_clk[i]), .clk_fb(clk_100), .toggling(rx_toggling[i]));
+        // pass-thru the reset signal to the module clock domain
+
+        wire m_soft_rst;
+        xpm_cdc_async_rst m_rst_cdc_inst (
+            .src_arst(soft_rst), .dest_arst(m_soft_rst),
+            .dest_clk(m_data_clk[i]));
 
         // Instantiate receiver for control and data from frontend
+
         data_rx m_data_rx (
             .clk(m_data_clk[i]),
-            .rst(soft_rst),
+            .rst(m_soft_rst),
             .d(m_data_in[i*LINES +: LINES]),
-            .rx_err(m_rx_err),
+            .rx_err(),
             .valid(m_rx_valid),
             .data(m_rx_data)
         );
 
-        xpm_cdc_array_single #(.WIDTH(1)) rx_err_cdc_inst (
-            .src_in(m_rx_err), .src_clk(m_data_clk[i]),
-            .dest_out(rx_err[i]), .dest_clk(clk_100)
-        );
+        // Create counters for singles, timetags, and commands
 
-        wire rx_data_fifo_empty, rx_cmd_fifo_empty;
-        assign m_data_valid[i] = ~rx_data_fifo_empty;
-        assign m_ub_cmd_valid[i]  = ~rx_cmd_fifo_empty;
+        wire [EV_COUNTER_CHAN-1:0] counter_signals =
+            {data_is_cmd, data_is_tt, sgl_flag} & {EV_COUNTER_CHAN{m_rx_valid}};
+
+        event_counter counters_inst (
+            .frontend_clk(m_data_clk[i]), .clk(clk_100),
+            .frontend_rst(m_soft_rst), .rst(soft_rst),
+            .signal(counter_signals), .load(channel_load_all[i]),
+            .counters({event_counters[i][2],
+                       event_counters[i][1],
+                       event_counters[i][0]})
+        );
 
         // Since each receiver has its own clock domain, pass data through fifo
         
+        // Fifo for singles and timetags, going to gigex
+
+        wire rx_data_fifo_empty, rx_data_rd_rst_busy;
+        assign m_data_valid[i] = ~(rx_data_rd_rst_busy | rx_data_fifo_empty);
+
         xpm_fifo_async #(
             .READ_MODE("fwft"),
             .FIFO_READ_LATENCY(0),
             .WRITE_DATA_WIDTH(128),
             .READ_DATA_WIDTH(128)
         ) rx_data_fifo (
-            .full(),
+            .rst(m_soft_rst),
             .din(m_rx_data),
             .wr_en(m_rx_valid & ~data_is_cmd),
             .wr_clk(m_data_clk[i]),
 
             .empty(rx_data_fifo_empty),
             .dout(m_data_out[i]),
-            .rd_en(m_data_ack[i]),
-            .rd_clk(clk_100)
+            .rd_en(m_data_valid[i] & m_data_ready[i]),
+            .rd_clk(clk_100),
+            .rd_rst_busy(rx_data_rd_rst_busy)
         );
 
+        // Fifo for commands, going back to microblaze
+
+        wire rx_cmd_fifo_empty, rx_cmd_rd_rst_busy;
         wire [LENGTH-1:0] m_ub_cmd_data_full;
         assign m_ub_cmd_data[i] = m_ub_cmd_data_full[0 +: CMD_LEN];
+        assign m_ub_cmd_valid[i] = ~(rx_cmd_fifo_empty | rx_cmd_rd_rst_busy);
+        wire m_ub_cmd_ack = m_ub_cmd_valid[i] & m_ub_cmd_ready[i];
 
         xpm_fifo_async #(
             .READ_MODE("fwft"),
@@ -342,15 +405,16 @@ module backend #(
             .WRITE_DATA_WIDTH(128),
             .READ_DATA_WIDTH(128)
         ) rx_cmd_fifo (
-            .full(),
+            .rst(m_soft_rst),
             .din(m_rx_data),
             .wr_en(m_rx_valid & data_is_cmd),
             .wr_clk(m_data_clk[i]),
 
             .empty(rx_cmd_fifo_empty),
             .dout(m_ub_cmd_data_full),
-            .rd_en(m_ub_cmd_valid[i] & m_ub_cmd_ready[i]),
-            .rd_clk(clk_100)
+            .rd_en(m_ub_cmd_ack),
+            .rd_clk(clk_100),
+            .rd_rst_busy(rx_cmd_rd_rst_busy)
         );
 
     end endgenerate
@@ -360,8 +424,12 @@ module backend #(
     */
 
     // singles data fifo to gigex 
-    wire m_data_mux_valid = |m_data_ack;
-    wire rx_fifo_ready, rx_fifo_empty;
+
+    wire rx_fifo_full, rx_fifo_wr_rst_busy;
+    assign m_data_mux_ready = ~(rx_fifo_full | rx_fifo_wr_rst_busy);
+
+    wire rx_fifo_ready, rx_fifo_empty, rx_fifo_rd_rst_busy;
+    wire rx_fifo_valid = ~(rx_fifo_empty | rx_fifo_rd_rst_busy);
     wire [LENGTH-1:0] rx_fifo_data;
     
     xpm_fifo_async #(
@@ -370,15 +438,18 @@ module backend #(
         .WRITE_DATA_WIDTH(128),
         .READ_DATA_WIDTH(128)
     ) m_eth_tx_fifo_inst (
-        .full(),
+        .rst(soft_rst),
+        .full(rx_fifo_full),
         .din(m_data_mux),
         .wr_en(m_data_mux_valid),
         .wr_clk(clk_100),
+        .wr_rst_busy(rx_fifo_wr_rst_busy),
     
         .empty(rx_fifo_empty),
         .dout(rx_fifo_data),
-        .rd_en(~rx_fifo_empty & rx_fifo_ready),
-        .rd_clk(~eth_clk)
+        .rd_en(rx_fifo_valid & rx_fifo_ready),
+        .rd_clk(~eth_clk),
+        .rd_rst_busy(rx_fifo_rd_rst_busy)
     );
 
     // GigEx control signals
@@ -391,7 +462,7 @@ module backend #(
         .clk(eth_clk),
         .channel_full(~nTF),
 
-        .valid(~rx_fifo_empty),
+        .valid(rx_fifo_valid),
         .ready(rx_fifo_ready),
         .data(rx_fifo_data),
 

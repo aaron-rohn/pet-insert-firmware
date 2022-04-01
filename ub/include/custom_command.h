@@ -11,22 +11,21 @@
 typedef enum {
     RST = 0,
 
-    // frontend commands (1,2,3)
-    DAC_WRITE,
-    ADC_READ,
-    MODULE_ID,
+    DAC_WRITE,      // frontend, 0x1
+    ADC_READ,       // frontend, 0x2
+    MODULE_ID,      // frontend, 0x3
 
-    // backend commands (4,5,6,7)
-    SET_POWER,
-    GET_CURRENT,
-    GPIO,
-    NOP,
+    SET_POWER,      // backend, 0x4
+    GET_CURRENT,    // backend, 0x5
+    GPIO,           // backend, 0x6
+    NOP,            // backend, 0x7
 
-    // other frontend commands (8,9,A,B)
-    DAC_READ,
-    PERIOD_READ,
-    SGL_RATE_READ,
-    GPIO_FRONTEND,
+    DAC_READ,       // frontend, 0x8
+    PERIOD_READ,    // frontend, 0x9
+    SGL_RATE_READ,  // frontend, 0xA
+    GPIO_FRONTEND,  // frontend, 0xB
+
+    COUNTER_READ,   // backend, 0xC
 
     // indicate that a reply is pending from the frontend
     CMD_RESPONSE = 0xF
@@ -93,5 +92,13 @@ typedef enum {
 
 #define GPIO_RD(bank) \
     Xil_In32(XPAR_GPIO_0_BASEADDR + (bank ? 0x8 : 0x0))
+
+/*
+ * Counter_read
+ * 18 bits: X
+ * 2  bits: counter select
+ */
+
+#define SEL_COUNTER(cmd) (cmd & 0x3)
 
 #endif
