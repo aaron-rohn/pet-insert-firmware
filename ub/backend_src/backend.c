@@ -21,6 +21,13 @@ int main()
     GPIO_SET_FPGA_LED();
     SPI_INIT();
 
+    // Toggle the soft reset
+    uint32_t value = GPIO_RD_O();
+    value |= 0x1;
+    GPIO_WR_O(value);
+    value &= ~0x1;
+    GPIO_WR_O(value);
+
 	while(1)
 	{
         uint32_t cmd = 0;
