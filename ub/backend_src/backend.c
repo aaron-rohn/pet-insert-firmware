@@ -19,14 +19,10 @@ uint32_t handle_current(uint32_t cmd)
 int main()
 {
     GPIO_SET_FPGA_LED();
-    SPI_INIT();
 
-    // Toggle the soft reset
-    uint32_t value = GPIO_RD_O();
-    value |= 0x1;
-    GPIO_WR_O(value);
-    value &= ~0x1;
-    GPIO_WR_O(value);
+    SPI_RST();
+    SPI_INIT();
+    SPI_WRITE(0);
 
 	while(1)
 	{
@@ -36,7 +32,13 @@ int main()
             cmd = SPI_READ();
         }
 
-        if (IS_CMD(cmd))
+        if (cmd == 1)
+        {
+            SPI_RST();
+            SPI_INIT();
+            SPI_WRITE(0);
+        }
+        else if (IS_CMD(cmd))
         {
             cmd_t c = CMD_COMMAND(cmd);
             uint32_t value = 0;
@@ -67,7 +69,9 @@ int main()
                             CMD_RESPONSE,
                             MODULE_PWR_IS_SET(value));
             }
+
             SPI_WRITE(cmd);
+            SPI_WRITE(0);
         }
 
         // read FSL from frontend and write to SPI
@@ -86,6 +90,7 @@ int main()
             {
                 // forward frontend response to workstation
                 SPI_WRITE(value);
+                SPI_WRITE(0);
             }
         }
 	}

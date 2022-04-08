@@ -52,7 +52,7 @@ module backend #(
             
     output wire [7:0] D,        // Tx data to gigex
     output wire nTx,            // Tx data valid to gigex
-    output wire [2:0] TC,       // Tx data channel to gigex
+    output reg [2:0] TC = 0,    // Tx data channel to gigex
     input  wire [7:0] nTF,      // Tx fifo full flag from gigex
 
     // master spi ports
@@ -63,18 +63,7 @@ module backend #(
 );
 
     // System clock and reset
-    wire clk_100, hard_rst, soft_rst_ub;
-    reg soft_rst = 0, soft_rst_ub_r = 0, soft_rst_ub_edge = 0;
-    reg [9:0] soft_rst_sr = 0;
-
-    // Only capture the edge of the soft_rst_ub signal
-    // Extend any rst event to 10 clocks minimum
-    always @(posedge clk_100) begin
-        soft_rst_ub_r       <= soft_rst_ub;
-        soft_rst_ub_edge    <= soft_rst_ub & ~soft_rst_ub_r;
-        soft_rst_sr         <= {soft_rst_sr, soft_rst_ub_edge | hard_rst};
-        soft_rst            <= |soft_rst_sr;
-    end
+    wire clk_100, soft_rst;
 
     /*
     * IO Port instantiation
@@ -89,14 +78,14 @@ module backend #(
     IBUFDS sys_rst_inst (.I(sys_rst_p), .IB(sys_rst_n), .O(sys_rst_ddr));
 
     IDDR #(.DDR_CLK_EDGE("SAME_EDGE")) sys_rst_iddr_inst (
-        .Q1(), .Q2(sys_rst), .D(sys_rst_ddr), .C(clk_100), .CE(1), .S(), .R(soft_rst));
+        .Q1(), .Q2(sys_rst), .D(sys_rst_ddr), .C(clk_100), .CE(1'b1), .S(), .R(1'b0));
 
     // Generate 125MHz ethernet clock from system clock
-    wire eth_clk, eth_clk_fb;
+    wire eth_clk_fb;
     PLLE2_BASE #(.CLKFBOUT_MULT(10), .CLKOUT0_DIVIDE(8), .CLKIN1_PERIOD(10)) eth_clk_inst (
-        .CLKIN1(clk_100), .CLKOUT0(eth_clk),
+        .CLKIN1(clk_100), .CLKOUT0(user_hs_clk),
         .CLKFBIN(eth_clk_fb), .CLKFBOUT(eth_clk_fb),
-        .RST(soft_rst), .LOCKED());
+        .RST(1'b0), .LOCKED());
 
     // Input and output connections to frontend modules
     wire [NMODULES-1:0] m_clk_ddr, m_ctrl_ddr, m_ctrl, m_data_clk;
@@ -112,7 +101,7 @@ module backend #(
             // Control output to frontend
             ODDR #(.DDR_CLK_EDGE("SAME_EDGE")) m_ctrl_oddr_inst (
                 .D1(m_ctrl[i]), .D2(m_ctrl[i]), .CE(1'b1), .C(clk_100),
-                .S(), .R(soft_rst), .Q(m_ctrl_ddr[i]));
+                .S(), .R(1'b0), .Q(m_ctrl_ddr[i]));
             OBUFTDS m_ctrl_obuf_inst (.T(~m_en[i]), .I(m_ctrl_ddr[i]), .O(m_ctrl_p[i]), .OB(m_ctrl_n[i]));    
 
             // Data clock from frontend
@@ -152,10 +141,9 @@ module backend #(
     localparam CMD_LEN = 32;
     wire [31:0] gpio_i, gpio_o;
 
-    assign soft_rst_ub      = gpio_o[0];
+    assign soft_rst         = gpio_o[0];
     assign status_fpga      = gpio_o[1];
     assign status_network   = gpio_o[2];
-    assign hard_rst         = gpio_o[3];
     assign m_en             = gpio_o[7:4];
 
     assign status_modules   = |m_en;
@@ -199,7 +187,7 @@ module backend #(
 
     low_speed_interface_wrapper low_speed_inst (
         .clk(clk_100),
-        .rst(hard_rst),
+        .rst(1'b0),
 
         .gpio_i_tri_i(gpio_i),
         .gpio_o_tri_o(gpio_o),
@@ -259,9 +247,9 @@ module backend #(
 
     /*
     * Transmitter side components
-    * Reset controller and TX controller
     */
 
+    // receive sync/reset code from sync board
     localparam RST_CODE = 4'b1100; // IDLE_CODE = 4'b1010;
     reg [3:0] sys_rst_reg = 0;
     wire sys_rst_valid = (sys_rst_reg == RST_CODE);
@@ -275,7 +263,7 @@ module backend #(
 
         rst_controller m_rst_inst (
             .clk(clk_100),
-            .rst(soft_rst | sys_rst_valid),
+            .rst(sys_rst_valid),
 
             .cmd_in_valid(ub_m_cmd_valid[i]),
             .cmd_in_ready(ub_m_cmd_ready[i]),
@@ -287,7 +275,7 @@ module backend #(
 
         data_tx #(.LENGTH(CMD_LEN), .LINES(1)) m_tx_inst (
             .clk(clk_100),
-            .rst(soft_rst | sys_rst_valid),
+            .rst(sys_rst_valid),
             .idle(),
 
             .valid(tx_valid),
@@ -300,7 +288,6 @@ module backend #(
 
     /*
     * Receiver side components
-    * RX controller and fifo
     */
 
     // Multiplex ready, valid, and data signals for 4 blocks
@@ -308,15 +295,15 @@ module backend #(
     wire [NMODULES-1:0] m_data_ready, m_data_valid;
     wire [LENGTH-1:0] m_data_out [NMODULES-1:0];
 
-    wire m_data_mux_ready;
-    wire m_data_mux_valid = |m_data_valid;
+    wire m_ready;
+    wire m_valid = |m_data_valid;
 
-    assign m_data_ready[0] = m_data_mux_ready;
+    assign m_data_ready[0] = m_ready;
     assign m_data_ready[1] = m_data_ready[0] & ~m_data_valid[0];
     assign m_data_ready[2] = m_data_ready[1] & ~m_data_valid[1];
     assign m_data_ready[3] = m_data_ready[2] & ~m_data_valid[2];
 
-    wire [LENGTH-1:0] m_data_mux =
+    wire [LENGTH-1:0] m_data =
         m_data_valid[0] ? m_data_out[0] :
         m_data_valid[1] ? m_data_out[1] :
         m_data_valid[2] ? m_data_out[2] :
@@ -361,13 +348,12 @@ module backend #(
         wire [EV_COUNTER_CHAN-1:0] counter_signals =
             {data_is_cmd, data_is_tt, sgl_flag} & {EV_COUNTER_CHAN{rd}};
 
-        wire [(EV_COUNTER_WIDTH*EV_COUNTER_CHAN)-1:0] all_counters = {
-            event_counters[i][2], event_counters[i][1], event_counters[i][0]};
-
         event_counter counters_inst (
-            .clk(clk_100), .rst(soft_rst),
+            .clk(clk_100), .rst(1'b0),
             .signal(counter_signals), .load(channel_load_all[i]),
-            .counters(all_counters));
+            .counters({event_counters[i][2],
+                       event_counters[i][1],
+                       event_counters[i][0]}));
 
         // Fifo for singles and timetags, going to gigex
 
@@ -397,43 +383,42 @@ module backend #(
     * Ethernet tx interface
     */
 
-    // singles data fifo to gigex 
+    // Flip byte ordering so that MSB is sent first
+    wire [LENGTH-1:0] m_data_flip;
+    generate for (i = 0; i < 128/8; i = i + 1) begin
+        assign m_data_flip[(i*8) +: 8] = m_data[127-(i*8) -: 8];
+    end endgenerate
 
-    wire rx_fifo_full;
-    assign m_data_mux_ready = ~rx_fifo_full;
-    wire rx_fifo_ready, rx_fifo_empty;
-    wire rx_fifo_valid = ~rx_fifo_empty;
-    wire [LENGTH-1:0] rx_fifo_data;
+    wire rx_full;
+    assign m_ready = ~rx_full;
+    wire valid, ready, rx_emp;
 
-    fifo_async m_eth_tx_fifo_inst (
-        .full(rx_fifo_full),
-        .din(m_data_mux),
-        .wr_en(m_data_mux_valid),
+    xpm_fifo_async #(
+        .FIFO_READ_LATENCY(0),
+        .READ_MODE("fwft"),
+        .FIFO_WRITE_DEPTH(16),
+        .WRITE_DATA_WIDTH(128),
+        .READ_DATA_WIDTH(8)
+    ) eth_fifo_inst (
+        .rst(1'b0),
+        .din(m_data_flip),
+        .wr_en(m_ready & m_valid),
         .wr_clk(clk_100),
-    
-        .empty(rx_fifo_empty),
-        .dout(rx_fifo_data),
-        .rd_en(rx_fifo_valid & rx_fifo_ready),
-        .rd_clk(~eth_clk)
-    );
+        .full(rx_full),
+        .dout(D),
+        .rd_en(~nTx),
+        .rd_clk(~user_hs_clk),
+        .empty(rx_emp));
 
-    // GigEx control signals
-    wire byte_out_valid;
-    assign nTx = ~byte_out_valid;
-    assign user_hs_clk = eth_clk;
+    reg nTF1 = 0, nTF2 = 0;
+    assign ready = nTF | nTF2;
+    assign valid = ~rx_emp;
+    assign nTx = ~(valid & ready);
 
-    // ethernet tx controller
-    ethernet_tx_controller eth_tx (
-        .clk(eth_clk),
-        .channel_full(~nTF),
-
-        .valid(rx_fifo_valid),
-        .ready(rx_fifo_ready),
-        .data(rx_fifo_data),
-
-        .byte_out(D),
-        .byte_out_valid(byte_out_valid),
-        .channel(TC)
-    );
+    // nTx can be asserted for 2 clocks after nTF falls
+    always @ (negedge user_hs_clk) begin
+        nTF1 <= nTF[0];
+        nTF2 <= nTF1;
+    end
 
 endmodule

@@ -47,8 +47,6 @@ module sync #(
     wire self_soft_rst;
 
     assign config_spi_ncs = 1;
-    assign sda = 1'bz;
-    assign scl = 1'bz;
 
     // Clk int
 
@@ -113,6 +111,8 @@ module sync #(
     design_1_wrapper ub_inst (
         .clk(clk_100),
         .rst(self_soft_rst),
+        .iic_rtl_0_scl_io(scl),
+        .iic_rtl_0_sda_io(sda),
         .spi_cs(gigex_spi_cs),
         .spi_sclk(gigex_spi_sck),
         .spi_miso(gigex_spi_miso),

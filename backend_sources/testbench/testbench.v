@@ -7,42 +7,42 @@ module testbench();
 
     /* Values for driving the SPI port */
 
-    localparam SPI_CLK_HALF = 57.143;
-    reg spi_clk = 0, spi_cs = 1;
-    always #SPI_CLK_HALF spi_clk = ~spi_clk;
-    wire spi_clk_mask = spi_clk | spi_cs;
+    localparam SPI_CLK_HALF = 14.286;
+    reg spi_clk_unmask = 0, spi_cs = 1, spi_msk = 1;
+    always #SPI_CLK_HALF spi_clk_unmask = ~spi_clk_unmask;
+    wire spi_clk = spi_clk_unmask | spi_msk;
     wire spi_miso;
     reg spi_mosi = 0;
 
     reg [31:0] spi_data_in = 0, spi_data_out = 0;
     wire [19:0] payload = spi_data_out[0 +: 20];
-    integer i;
+    integer i = 0;
     task spi;
         begin
-            for (i = 0; i < 32; i = i + 1) begin
-                @(negedge spi_clk);
-                spi_cs       <= 0;
-                spi_mosi     <= spi_data_in[31];
-                spi_data_in  <= spi_data_in << 1;
-                spi_data_out <= {spi_data_out, spi_miso};
+            @(negedge spi_clk_unmask) spi_cs = 0;
+            for (i = 0; i <= 32; i = i + 1) begin
+                @(negedge spi_clk_unmask);
+                spi_msk         = (i == 32);
+                spi_mosi        = spi_data_in[31];
+                spi_data_in     = spi_data_in << 1;
+                spi_data_out    = {spi_data_out, spi_miso};
             end
-            @(negedge spi_clk);
-            spi_cs <= 1;
+            @(negedge spi_clk_unmask) spi_cs = 1;
         end
     endtask
 
     task spi_query;
         begin
             spi();
-            #10_000;
-            spi_data_in <= 0;
+            #10000;
+            spi_data_in = 0;
             spi();
         end
     endtask
 
     /* Values for creating command responses */
 
-    reg is_single = 1, is_cmd = 0;
+    reg is_single = 0, is_cmd = 1;
 
     wire m0_data_ready, m1_data_ready;
     reg m0_data_valid = 0, m1_data_valid = 0;
@@ -51,6 +51,7 @@ module testbench();
     reg [3:0] module_id = 0;
     reg [31:0] m0_data_in = 0, m1_data_in = 0;
 
+    // sgl -> 122, cmd -> 115
     wire [95:0] packet_header = {
         {5{1'b1}},
         is_single,
@@ -79,6 +80,9 @@ module testbench();
     wire [3:0] m_clks_in = {4{clk_100}};
     wire [11:0] m_datas_in = {m3_data, m2_data, m1_data, m0_data};
 
+    wire nTx, eth_clk;
+    reg nTF = 1;
+
     backend backend_inst (
         .sys_clk_p(clk_100),
         .sys_clk_n(~clk_100),
@@ -96,12 +100,13 @@ module testbench();
         .m_data_n(~m_datas_in),
 
         .gigex_spi_cs(spi_cs),
-        .gigex_spi_sck(spi_clk_mask),
+        .gigex_spi_sck(spi_clk),
         .gigex_spi_mosi(spi_mosi),
         .gigex_spi_miso(spi_miso),
 
-        .Q(), .nRx(), .RC(), .nRF(),
-        .D(), .nTx(), .TC(), .nTF({8{1'b1}})
+        .user_hs_clk(eth_clk),
+        .Q(8'h00), .nRx(1'b1), .RC(3'd0), .nRF(),
+        .D(), .nTx(nTx), .TC(), .nTF({ {7{1'b1}}, nTF })
     );
     
     data_rx #(.LENGTH(32), .LINES(1)) m0_rx_inst (
@@ -148,26 +153,28 @@ module testbench();
     );
 
     initial begin
-        #10_000 @ (negedge sys_rst_mask[0]) do_rst <= 1;
-        @ (posedge clk_100) do_rst <= 0;
+        #10_000 @ (negedge sys_rst_mask[0]) do_rst = 1;
+        @ (posedge clk_100) do_rst = 0;
         #10_000
 
-        spi_data_in <= 32'hF064_04FF;
+        spi_data_in = 32'hF064_04F1;
         spi_query();
-        #10_000
+        #10_000;
 
-        spi_data_in <= 32'hF064_0011;
+        spi_data_in = 32'hF030_0000;
         spi_query();
-        #10_000
+        #10_000;
 
-        spi_data_in <= 32'hF064_0010;
-        spi_query();
-        #10_000
+        m0_data_in = 32'hF130_ABCD;
+        @(posedge clk_100) m0_data_valid = 1'b1;
+        #100 m0_data_valid = 1'b0;
 
-        spi_data_in <= 32'hF064_0311;
-        spi_query();
-        #10_000
+        #10_000;
 
+        spi_data_in = 0;
+        spi();
+
+        #10_000;
         $stop;
     end
     

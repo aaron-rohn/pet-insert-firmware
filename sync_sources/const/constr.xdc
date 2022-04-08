@@ -38,8 +38,8 @@ set_property -dict {IOSTANDARD LVDS_25 DIFF_TERM TRUE PACKAGE_PIN T15} [get_port
 
 set_property -dict {IOSTANDARD LVCMOS25 PACKAGE_PIN L12} [get_ports config_spi_ncs]
 
-set_property -dict {IOSTANDARD LVCMOS25 PACKAGE_PIN H16} [get_ports sda]
-set_property -dict {IOSTANDARD LVCMOS25 PACKAGE_PIN G16} [get_ports scl]
+set_property -dict {IOSTANDARD LVCMOS25 PACKAGE_PIN H16} [get_ports scl]
+set_property -dict {IOSTANDARD LVCMOS25 PACKAGE_PIN G16} [get_ports sda]
 
 set_property -dict {IOSTANDARD LVCMOS25 PACKAGE_PIN B11} [get_ports status_fpga]
 set_property -dict {IOSTANDARD LVCMOS25 PACKAGE_PIN B10} [get_ports status_network]
