@@ -20,7 +20,6 @@ int main()
 
     SPI_RST();
     SPI_INIT();
-    SPI_WRITE(0);
 
 	while(1)
 	{
@@ -34,7 +33,6 @@ int main()
         {
             SPI_RST();
             SPI_INIT();
-            SPI_WRITE(0);
         }
         else if (IS_CMD(cmd))
 		{
@@ -85,7 +83,6 @@ int main()
             }
 
             SPI_WRITE(cmd);
-            SPI_WRITE(0);
         }
     }
 
