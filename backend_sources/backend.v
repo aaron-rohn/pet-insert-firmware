@@ -63,7 +63,7 @@ module backend #(
 );
 
     // System clock and reset
-    wire clk_100, soft_rst;
+    wire sys_clk, soft_rst;
 
     /*
     * IO Port instantiation
@@ -74,18 +74,13 @@ module backend #(
     assign config_spi_ncs = 1;
     
     wire sys_rst_ddr, sys_rst;
-    IBUFGDS sys_clk_inst (.I(sys_clk_p), .IB(sys_clk_n), .O(clk_100));
+    IBUFGDS sys_clk_inst (.I(sys_clk_p), .IB(sys_clk_n), .O(sys_clk));
     IBUFDS sys_rst_inst (.I(sys_rst_p), .IB(sys_rst_n), .O(sys_rst_ddr));
 
     IDDR #(.DDR_CLK_EDGE("SAME_EDGE")) sys_rst_iddr_inst (
-        .Q1(), .Q2(sys_rst), .D(sys_rst_ddr), .C(clk_100), .CE(1'b1), .S(), .R(1'b0));
+        .Q1(), .Q2(sys_rst), .D(sys_rst_ddr), .C(sys_clk), .CE(1'b1), .S(), .R(1'b0));
 
-    // Generate 125MHz ethernet clock from system clock
-    wire eth_clk_fb;
-    PLLE2_BASE #(.CLKFBOUT_MULT(10), .CLKOUT0_DIVIDE(8), .CLKIN1_PERIOD(10)) eth_clk_inst (
-        .CLKIN1(clk_100), .CLKOUT0(user_hs_clk),
-        .CLKFBIN(eth_clk_fb), .CLKFBOUT(eth_clk_fb),
-        .RST(1'b0), .LOCKED());
+    assign user_hs_clk = sys_clk;
 
     // Input and output connections to frontend modules
     wire [NMODULES-1:0] m_clk_ddr, m_ctrl_ddr, m_ctrl, m_data_clk;
@@ -94,13 +89,13 @@ module backend #(
         for (i = 0; i < NMODULES; i = i + 1) begin: frontend_port_inst
             // Clock output to frontend (don't reset)
             ODDR m_clk_oddr_inst (
-                .D1(1'b1), .D2(1'b0), .CE(1'b1), .C(clk_100), 
+                .D1(1'b1), .D2(1'b0), .CE(1'b1), .C(sys_clk), 
                 .S(), .R(1'b0), .Q(m_clk_ddr[i]));
             OBUFTDS m1_clk_obuf_inst (.T(~m_en[i]), .I(m_clk_ddr[i]), .O(m_clk_p[i]), .OB(m_clk_n[i]));
 
             // Control output to frontend
             ODDR #(.DDR_CLK_EDGE("SAME_EDGE")) m_ctrl_oddr_inst (
-                .D1(m_ctrl[i]), .D2(m_ctrl[i]), .CE(1'b1), .C(clk_100),
+                .D1(m_ctrl[i]), .D2(m_ctrl[i]), .CE(1'b1), .C(sys_clk),
                 .S(), .R(1'b0), .Q(m_ctrl_ddr[i]));
             OBUFTDS m_ctrl_obuf_inst (.T(~m_en[i]), .I(m_ctrl_ddr[i]), .O(m_ctrl_p[i]), .OB(m_ctrl_n[i]));    
 
@@ -186,7 +181,7 @@ module backend #(
     // instantiate microblaze
 
     low_speed_interface_wrapper low_speed_inst (
-        .clk(clk_100),
+        .clk(sys_clk),
         .rst(1'b0),
 
         .gpio_i_tri_i(gpio_i),
@@ -253,7 +248,7 @@ module backend #(
     localparam RST_CODE = 4'b1100; // IDLE_CODE = 4'b1010;
     reg [3:0] sys_rst_reg = 0;
     wire sys_rst_valid = (sys_rst_reg == RST_CODE);
-    always @ (posedge clk_100) sys_rst_reg <= {sys_rst_reg, sys_rst};
+    always @ (posedge sys_clk) sys_rst_reg <= {sys_rst_reg, sys_rst};
 
     // Per-module reset controller and tx controller
     generate for (i = 0; i < NMODULES; i = i + 1) begin: tx_side_inst
@@ -262,7 +257,7 @@ module backend #(
         wire [CMD_LEN-1:0] tx_data;
 
         rst_controller m_rst_inst (
-            .clk(clk_100),
+            .clk(sys_clk),
             .rst(sys_rst_valid),
 
             .cmd_in_valid(ub_m_cmd_valid[i]),
@@ -274,7 +269,7 @@ module backend #(
             .cmd_out(tx_data));
 
         data_tx #(.LENGTH(CMD_LEN), .LINES(1)) m_tx_inst (
-            .clk(clk_100),
+            .clk(sys_clk),
             .rst(sys_rst_valid),
             .idle(),
 
@@ -332,7 +327,7 @@ module backend #(
         fifo_async rx_all_inst (
             .din(m_rx_data), .wr_en(m_rx_valid),
             .empty(emp), .dout(all_data), .rd_en(rd),
-            .wr_clk(m_data_clk[i]), .rd_clk(clk_100));
+            .wr_clk(m_data_clk[i]), .rd_clk(sys_clk));
 
         // flags to identify the type of the next event (sgl, tt, cmd)
 
@@ -349,7 +344,7 @@ module backend #(
             {data_is_cmd, data_is_tt, sgl_flag} & {EV_COUNTER_CHAN{rd}};
 
         event_counter counters_inst (
-            .clk(clk_100), .rst(1'b0),
+            .clk(sys_clk), .rst(1'b0),
             .signal(counter_signals), .load(channel_load_all[i]),
             .counters({event_counters[i][2],
                        event_counters[i][1],
@@ -362,7 +357,7 @@ module backend #(
         assign m_data_valid[i] = ~data_empty;
 
         fifo_sync rx_data_fifo (
-            .clk(clk_100), .din(all_data), .wr_en(dwr),
+            .clk(sys_clk), .din(all_data), .wr_en(dwr),
             .empty(data_empty), .dout(m_data_out[i]),
             .rd_en(m_data_valid[i] & m_data_ready[i]));
 
@@ -373,7 +368,7 @@ module backend #(
         assign m_ub_cmd_valid[i] = ~cmd_empty;
 
         fifo_sync rx_cmd_fifo (
-            .clk(clk_100), .din(all_data), .wr_en(cwr),
+            .clk(sys_clk), .din(all_data), .wr_en(cwr),
             .empty(cmd_empty), .dout(m_ub_cmd_data[i]),
             .rd_en(m_ub_cmd_valid[i] & m_ub_cmd_ready[i]));
 
@@ -403,7 +398,7 @@ module backend #(
         .rst(1'b0),
         .din(m_data_flip),
         .wr_en(m_ready & m_valid),
-        .wr_clk(clk_100),
+        .wr_clk(sys_clk),
         .full(rx_full),
         .dout(D),
         .rd_en(~nTx),

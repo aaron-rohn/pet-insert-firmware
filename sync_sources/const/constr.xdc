@@ -46,6 +46,7 @@ set_property -dict {IOSTANDARD LVCMOS25 PACKAGE_PIN B10} [get_ports status_netwo
 
 set_property -dict {IOSTANDARD LVDS_25 DIFF_TERM TRUE PACKAGE_PIN D4} [get_ports clk_100_p]
 set_property -dict {IOSTANDARD LVDS_25 DIFF_TERM TRUE PACKAGE_PIN C4} [get_ports clk_100_n]
+
 create_clock -name clk_100 -period 10 [get_ports clk_100_p]
 
 ### High speed GigEx interface ports ###

@@ -6,6 +6,19 @@ set_property BITSTREAM.CONFIG.SPI_FALL_EDGE YES [current_design]
 set_property CFGBVS VCCO [current_design]
 set_property CONFIG_VOLTAGE 2.5 [current_design]
 
+create_clock -period 8 [get_ports sys_clk_p]
+create_clock -period 10 [get_ports clk_100_p]
+
+create_clock -period 8 [get_ports m_clk_p[0]]
+create_clock -period 8 [get_ports m_clk_p[1]]
+create_clock -period 8 [get_ports m_clk_p[2]]
+create_clock -period 8 [get_ports m_clk_p[3]]
+
+create_clock -period 8 [get_ports m_data_clk_p[0]]
+create_clock -period 8 [get_ports m_data_clk_p[1]]
+create_clock -period 8 [get_ports m_data_clk_p[2]]
+create_clock -period 8 [get_ports m_data_clk_p[3]]
+
 ### System ports ###
 
 set_property -dict {IOSTANDARD LVDS_25 DIFF_TERM TRUE PACKAGE_PIN E12} [get_ports sys_clk_p]
@@ -25,13 +38,6 @@ set_property -dict {IOSTANDARD LVCMOS25 PACKAGE_PIN L12} [get_ports config_spi_n
 set_property -dict {IOSTANDARD LVDS_25 DIFF_TERM TRUE PACKAGE_PIN D4} [get_ports clk_100_p]
 set_property -dict {IOSTANDARD LVDS_25 DIFF_TERM TRUE PACKAGE_PIN C4} [get_ports clk_100_n]
 
-create_clock -period 10 [get_ports sys_clk_p]
-create_clock -period 10 [get_ports clk_100_p]
-#create_clock -period 114 [get_ports gigex_spi_sck]
-#set_clock_groups -asynchronous \
-#-group [get_clocks -of_object [get_ports sys_clk_p]] \
-#-group [get_clocks -of_object [get_ports gigex_spi_sck]]
-
 ### Module Ports ###
 
 set_property -dict {IOSTANDARD LVCMOS25 DRIVE 16 PACKAGE_PIN J16} [get_ports m_en[0]]
@@ -48,11 +54,6 @@ set_property -dict {IOSTANDARD LVDS_25 PACKAGE_PIN A8}  [get_ports m_clk_p[2]]
 set_property -dict {IOSTANDARD LVDS_25 PACKAGE_PIN A9}  [get_ports m_clk_n[2]]
 set_property -dict {IOSTANDARD LVDS_25 PACKAGE_PIN C16} [get_ports m_clk_p[3]]
 set_property -dict {IOSTANDARD LVDS_25 PACKAGE_PIN B16} [get_ports m_clk_n[3]]
-create_clock -period 10 [get_ports m_clk_p[0]]
-create_clock -period 10 [get_ports m_clk_p[1]]
-create_clock -period 10 [get_ports m_clk_p[2]]
-create_clock -period 10 [get_ports m_clk_p[3]]
-
 
 # control to frontend
 set_property -dict {IOSTANDARD LVDS_25 PACKAGE_PIN M16} [get_ports m_ctrl_p[0]]
@@ -73,12 +74,6 @@ set_property -dict {IOSTANDARD LVDS_25 DIFF_TERM TRUE PACKAGE_PIN F5}  [get_port
 set_property -dict {IOSTANDARD LVDS_25 DIFF_TERM TRUE PACKAGE_PIN E5}  [get_ports m_data_clk_n[2]]
 set_property -dict {IOSTANDARD LVDS_25 DIFF_TERM TRUE PACKAGE_PIN D13} [get_ports m_data_clk_p[3]]
 set_property -dict {IOSTANDARD LVDS_25 DIFF_TERM TRUE PACKAGE_PIN C13} [get_ports m_data_clk_n[3]]
-
-create_clock -period 10 [get_ports m_data_clk_p[0]]
-create_clock -period 10 [get_ports m_data_clk_p[1]]
-create_clock -period 10 [get_ports m_data_clk_p[2]]
-create_clock -period 10 [get_ports m_data_clk_p[3]]
-
 
 # Module 1 data ports
 set_property -dict {IOSTANDARD LVDS_25 DIFF_TERM TRUE PACKAGE_PIN R15} [get_ports m_data_p[0]]

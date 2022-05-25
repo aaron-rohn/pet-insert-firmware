@@ -3,8 +3,7 @@
 module frontend #(
     NCH        = 10, 
     DATA_WIDTH = 128,
-    LINES      = 3,
-    CLK_PER_TT = 17'd99_998
+    LINES      = 3
 )(
     output wire config_spi_ncs,
     input wire [3:0] module_id,
@@ -58,21 +57,21 @@ module frontend #(
         .dest_pulse(pll_rst), .dest_clk(sys_clk_in)
     );
 
-    // Generate frontend clock
-    // Frontend clock is 4x the system clock, 8 bits for DDR ISERDES
     wire clk_frontend, clk_frontend_fb;
-    PLLE2_BASE #(
-        .CLKIN1_PERIOD(10),
-        .CLKFBOUT_MULT(12),
-        .CLKOUT0_DIVIDE(3),
-        .CLKOUT1_DIVIDE(12)
+    MMCME2_BASE #(
+        .BANDWIDTH("HIGH"),
+        .CLKIN1_PERIOD(8),
+        .CLKFBOUT_MULT_F(9.000),
+        .CLKOUT0_DIVIDE_F(2.500),
+        .CLKOUT1_DIVIDE(9)
     ) clk_frontend_inst (
         .CLKIN1(sys_clk_in),
-        .CLKOUT0(clk_frontend),
-        .CLKOUT1(sys_clk),
         .CLKFBIN(clk_frontend_fb),
         .CLKFBOUT(clk_frontend_fb),
-        .RST(pll_rst), .LOCKED()
+        .CLKOUT0(clk_frontend),
+        .CLKOUT1(sys_clk),
+        .RST(pll_rst),
+        .PWRDWN(1'b0)
     );
 
     // Control data input
@@ -137,8 +136,7 @@ module frontend #(
     wire tt_ready, tt_valid, stall;
     wire [DATA_WIDTH-1:0] tt_data;
 
-    time_counter_iserdes #(.CLK_PER_TT(CLK_PER_TT))
-    time_tag_inst (
+    time_counter_iserdes time_tag_inst (
         .clk(sys_clk), .rst(full_rst), .module_id(module_id),
         .valid(tt_valid), .ready(tt_ready), .tt(tt_data), .stall(stall),
         .counter(counter), .period(period), .period_done(period_done)

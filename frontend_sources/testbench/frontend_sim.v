@@ -42,7 +42,7 @@ module frontend_sim();
 
     initial begin
         forever begin
-            #5 clk = ~clk;
+            #4 clk = ~clk;
         end
     end
     
