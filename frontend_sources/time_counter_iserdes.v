@@ -13,10 +13,7 @@ module time_counter_iserdes (
     output wire period_done
 );
     // 100MHz -> 1ms
-    //parameter CLK_PER_TT = 17'd99_998;
-
-    // 125MHz -> 1ms
-    parameter CLK_PER_TT = 17'd124_998;
+    parameter CLK_PER_TT = 17'd99_998;
 
     assign tt = {
         {5{1'b1}}, // Framing bits         5

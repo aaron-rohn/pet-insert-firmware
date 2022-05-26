@@ -3,7 +3,10 @@
 module frontend #(
     NCH        = 10, 
     DATA_WIDTH = 128,
-    LINES      = 3
+    LINES      = 3,
+
+    // 115MHz system clock
+    CLK_PER_TT = 17'd114_998
 )(
     output wire config_spi_ncs,
     input wire [3:0] module_id,
@@ -58,12 +61,12 @@ module frontend #(
     );
 
     wire clk_frontend, clk_frontend_fb;
-    MMCME2_BASE #(
+    PLLE2_BASE #(
         .BANDWIDTH("HIGH"),
-        .CLKIN1_PERIOD(8),
-        .CLKFBOUT_MULT_F(9.000),
-        .CLKOUT0_DIVIDE_F(2.500),
-        .CLKOUT1_DIVIDE(9)
+        .CLKIN1_PERIOD(8.696), // 115MHz
+        .CLKFBOUT_MULT(12),
+        .CLKOUT0_DIVIDE(3),
+        .CLKOUT1_DIVIDE(12)
     ) clk_frontend_inst (
         .CLKIN1(sys_clk_in),
         .CLKFBIN(clk_frontend_fb),
@@ -73,6 +76,9 @@ module frontend #(
         .RST(pll_rst),
         .PWRDWN(1'b0)
     );
+
+    // frontend clock is 460MHz -> TDC LSB is 1.087ns
+    // 1 / 460e6 / 2
 
     // Control data input
     wire sys_ctrl_ddr, sys_ctrl;
@@ -136,7 +142,9 @@ module frontend #(
     wire tt_ready, tt_valid, stall;
     wire [DATA_WIDTH-1:0] tt_data;
 
-    time_counter_iserdes time_tag_inst (
+    time_counter_iserdes #(
+        .CLK_PER_TT(CLK_PER_TT)
+    ) time_tag_inst (
         .clk(sys_clk), .rst(full_rst), .module_id(module_id),
         .valid(tt_valid), .ready(tt_ready), .tt(tt_data), .stall(stall),
         .counter(counter), .period(period), .period_done(period_done)

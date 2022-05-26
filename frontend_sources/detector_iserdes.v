@@ -22,11 +22,12 @@ module detector_iserdes #(
     // Extend the reset by at least two clocks to wait for iserdes
     localparam n_rst_ext = 4;
     reg [n_rst_ext-1:0] rst_sr = {n_rst_ext{1'b1}};
-    reg rst_ext = 0;
+    reg rst_in = 0, rst_ext = 0;
 
     always @(posedge clk) begin
-        rst_sr  <= {rst_sr, rst};
-        rst_ext <= rst | (|rst_sr);
+        rst_in  <= rst;
+        rst_sr  <= {rst_sr, rst_in};
+        rst_ext <= rst_in | (|rst_sr);
     end
 
     genvar i;
@@ -41,7 +42,7 @@ module detector_iserdes #(
         ) iserdes_inst (
             .Q1(data[i][0]), .Q2(data[i][1]), .Q3(data[i][2]), .Q4(data[i][3]),
             .Q5(data[i][4]), .Q6(data[i][5]), .Q7(data[i][6]), .Q8(data[i][7]),
-            .BITSLIP(0), .CE1(1), .CE2(1), .RST(rst),
+            .BITSLIP(0), .CE1(1), .CE2(1), .RST(rst_in),
             .CLK(sample_clk), .CLKB(~sample_clk),
             .CLKDIV(clk), .CLKDIVP(0), .D(signal[i])
         );
