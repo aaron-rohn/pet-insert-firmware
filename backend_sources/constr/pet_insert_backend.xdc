@@ -6,7 +6,7 @@ set_property BITSTREAM.CONFIG.SPI_FALL_EDGE YES [current_design]
 set_property CFGBVS VCCO [current_design]
 set_property CONFIG_VOLTAGE 2.5 [current_design]
 
-create_clock -period 8 [get_ports sys_clk_p]
+create_clock -period 8.696 [get_ports sys_clk_p]
 create_clock -period 10 [get_ports clk_100_p]
 
 create_clock -period 8 [get_ports m_clk_p[0]]

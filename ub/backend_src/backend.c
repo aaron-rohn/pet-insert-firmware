@@ -6,15 +6,7 @@
 #include "custom_spi.h"
 #include "custom_gpio.h"
 
-uint32_t handle_current(uint32_t cmd)
-{
-    uint32_t value = 0;
-    value = CMD_MODULE_LOWER(cmd);
-    value = ADC_CH_MAP(value);
-    value = backend_current_read(value);
-    CMD_SET_PAYLOAD(cmd, value);
-    return cmd;
-}
+#define CURRENT_THRESHOLD 1500
 
 int main()
 {
@@ -23,13 +15,30 @@ int main()
     SPI_RST();
     SPI_INIT();
 
+    uint8_t ch = 0;
+    uint32_t vals[4] = {0};
+
 	while(1)
 	{
+        // measure current on each loop
+
+        vals[ch] = backend_current_read(ch);
+        if (vals[ch] > CURRENT_THRESHOLD)
+        {
+            // power off module in case of over-current
+            MODULE_CLR_PWR(ch);
+        }
+        ch = (ch + 1) % 4;
+
+        // check for command from workstation
+
         uint32_t cmd = 0;
         if (SPI_RX_VALID())
         {
             cmd = SPI_READ();
         }
+
+        // handle commands
 
         if (cmd == 1)
         {
@@ -51,7 +60,8 @@ int main()
                     break;
 
                 case GET_CURRENT:
-                    cmd = handle_current(cmd);
+                    value = CMD_MODULE_LOWER(cmd);
+                    CMD_SET_PAYLOAD(cmd, vals[value]);
                     break;
 
                 case COUNTER_READ:
@@ -85,8 +95,17 @@ int main()
              */
             if (!invalid && MODULE_PWR_IS_SET(i))
             {
-                // forward frontend response to workstation
-                SPI_WRITE(value);
+                // frontend module indicates over-temperature
+                if (CMD_COMMAND(value) == CMD_RESPONSE)
+                {
+                    // power off the specified module
+                    MODULE_CLR_PWR(i);
+                }
+                else
+                {
+                    // forward frontend response to workstation
+                    SPI_WRITE(value);
+                }
             }
         }
 	}

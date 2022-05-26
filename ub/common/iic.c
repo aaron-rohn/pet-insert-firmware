@@ -79,7 +79,8 @@ uint8_t iic_read(
 // Measure current consumption of one module each loop
 uint32_t backend_current_read(uint8_t ch)
 {
-    uint8_t buf[3] = {ADC_CONFIG_REG, ADC_CONFIG_H | (ch << 4), ADC_CONFIG_L};
+    uint8_t adc_ch = ADC_CH_MAP(ch);
+    uint8_t buf[3] = {ADC_CONFIG_REG, ADC_CONFIG_H | (adc_ch << 4), ADC_CONFIG_L};
     uint8_t iic_return = iic_write(ADC_ADDR, sizeof(buf), buf);
 
     buf[0] = 0;

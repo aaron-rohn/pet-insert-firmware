@@ -73,14 +73,28 @@ module backend #(
 
     assign config_spi_ncs = 1;
     
-    wire sys_rst_ddr, sys_rst;
+    wire clk_100, sys_rst_ddr, sys_rst;
+    IBUFGDS clk_100_inst (.I(clk_100_p), .IB(clk_100_n), .O(clk_100));
     IBUFGDS sys_clk_inst (.I(sys_clk_p), .IB(sys_clk_n), .O(sys_clk));
     IBUFDS sys_rst_inst (.I(sys_rst_p), .IB(sys_rst_n), .O(sys_rst_ddr));
 
     IDDR #(.DDR_CLK_EDGE("SAME_EDGE")) sys_rst_iddr_inst (
         .Q1(), .Q2(sys_rst), .D(sys_rst_ddr), .C(sys_clk), .CE(1'b1), .S(), .R(1'b0));
 
-    assign user_hs_clk = sys_clk;
+    // create 125MHz ethernet clock
+    wire clk_100_fb;
+    PLLE2_BASE #(
+        .CLKIN1_PERIOD(10),
+        .CLKFBOUT_MULT(10),
+        .CLKOUT0_DIVIDE(8)
+    ) user_hs_clk_inst (
+        .CLKIN1(clk_100),
+        .CLKFBIN(clk_100_fb),
+        .CLKFBOUT(clk_100_fb),
+        .CLKOUT0(user_hs_clk),
+        .RST(1'b0),
+        .PWRDWN(1'b0)
+    );
 
     // Input and output connections to frontend modules
     wire [NMODULES-1:0] m_clk_ddr, m_ctrl_ddr, m_ctrl, m_data_clk;
@@ -130,7 +144,6 @@ module backend #(
 
     /*
     * Microblaze instatiation
-    * Clocked with 100MHz clock from board
     */
 
     localparam CMD_LEN = 32;

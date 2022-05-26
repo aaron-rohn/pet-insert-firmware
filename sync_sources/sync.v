@@ -52,17 +52,18 @@ module sync #(
     IBUFGDS clk_100_inst (.I(clk_100_p), .IB(clk_100_n), .O(clk_100));
 
     wire sys_clk, sys_clk_fb;
-    PLLE2_BASE #(
-        .BANDWIDTH("LOW"),
+    MMCME2_BASE #(
+        .BANDWIDTH("HIGH"),
         .CLKIN1_PERIOD(10),
-        .CLKFBOUT_MULT(10),
-        .CLKOUT0_DIVIDE(8)
+        .CLKFBOUT_MULT_F(20.125),
+        .CLKOUT0_DIVIDE_F(8.750),
+        .DIVCLK_DIVIDE(2)
     ) clk_sys_inst (
         .CLKIN1(clk_100),
         .CLKOUT0(sys_clk),
         .CLKFBIN(sys_clk_fb),
         .CLKFBOUT(sys_clk_fb),
-        .RST(1'b0), .LOCKED()
+        .RST(1'b0), .PWRDWN(1'b0)
     );
 
     wire m_rst;
