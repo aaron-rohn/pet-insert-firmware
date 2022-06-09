@@ -6,8 +6,6 @@
 #include "custom_spi.h"
 #include "custom_gpio.h"
 
-#define CURRENT_THRESHOLD 1500
-
 int main()
 {
     GPIO_SET_FPGA_LED();
@@ -17,13 +15,14 @@ int main()
 
     uint8_t ch = 0;
     uint32_t vals[4] = {0};
+    uint16_t current_adc_thresh = 1500;
 
 	while(1)
 	{
         // measure current on each loop
 
         vals[ch] = backend_current_read(ch);
-        if (vals[ch] > CURRENT_THRESHOLD)
+        if (vals[ch] > current_adc_thresh)
         {
             // power off module in case of over-current
             MODULE_CLR_PWR(ch);
@@ -67,6 +66,17 @@ int main()
                 case COUNTER_READ:
                     cmd = handle_counter(cmd);
                     break;
+
+                /*
+                case UPDATE_REG:
+                    if (cmd >> 16 == 0) {
+                        value = current_adc_thresh;
+                        current_adc_thresh = cmd & 0xFFFF;
+                        CMD_SET_PAYLOAD(cmd, value);
+                        break;
+                    };
+                    // else fall through
+                */
 
                 default:
                     // forward the command to the indicated module

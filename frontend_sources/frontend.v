@@ -19,7 +19,7 @@ module frontend #(
 
     // High speed interface
     
-    // 100MHz input clock from backend
+    // 115MHz input clock from backend
     input wire sys_clk_p,
     input wire sys_clk_n,
     
@@ -162,9 +162,7 @@ module frontend #(
     wire [31:0] gpio1;
     wire [1:0] sgl_blk_select = gpio1[0 +:  2];
 
-    // 0 - normal operation, timetags are stalled by preceeding events
-    // 1 - timetags are emitted immediately, regardless of events
-    wire disable_tt_stall = gpio1[2];
+    // gpio[2] used to be disable_tt_stall
 
     // 0 - normal operation, input signals are processed
     // 1 - input signals are disabled and the detector frontend is held in reset
@@ -277,9 +275,13 @@ module frontend #(
     */
     
     wire [3:0] stall_blk;
-    assign stall = (|stall_blk) & ~disable_tt_stall;
+    assign stall = |stall_blk;
 
-    wire [NCH*4-1:0] blocks = {block1, block2, block3, block4};
+    wire [NCH-1:0] blocks [3:0];
+    assign blocks[0] = block1;
+    assign blocks[1] = block2;
+    assign blocks[2] = block3;
+    assign blocks[3] = block4;
 
     generate for (i = 0; i < 4; i = i + 1) begin
         wire [1:0] blk_idx = i;
@@ -287,7 +289,7 @@ module frontend #(
             .sample_clk(clk_frontend),
             .clk(sys_clk),
             .rst(full_rst | disable_inputs),
-            .signal(blocks[i*NCH +: NCH]),
+            .signal(blocks[i]),
             .block_id({module_id, blk_idx}),
             .counter(counter),
             .period_done(period_done),

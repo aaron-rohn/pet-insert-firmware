@@ -29,9 +29,6 @@
 #define BLK_DISABLE 3
 #define SOFT_RST    4
 
-// temperature threshold is ~35C
-#define TEMP_ADC_THRESH 0x3DC
-
 uint8_t iic_write_buf[3] = {0};
 #define IIC_BUF_SET(b0,b1,b2) ({\
         iic_write_buf[0] = b0; \
@@ -50,7 +47,7 @@ uint32_t read_adc_temp(uint8_t channel)
     uint8_t iic_return = iic_write(adc_addr, 3, iic_write_buf);
 
     // Wait until conversion finishes
-    IIC_BUF_SET(0,0,0);
+    IIC_BUF_SET(0xFF,0,0);
     while (iic_return == IIC_SUCCESS && (iic_write_buf[0] & ADC_CONFIG_OS) == 0)
     {
         iic_return = iic_read(adc_addr, 0, NULL, 2, iic_write_buf);
@@ -96,13 +93,16 @@ int main()
     uint8_t curr_chan = 0;
     uint32_t temp_values[8] = {0};
 
+    // default temperature threshold is ~35C
+    uint16_t temp_adc_thresh = 0x3DC;
+
     while (1)
     {
         // read a temperature value on each loop
         temp_values[curr_chan] = read_adc_temp(curr_chan);
 
         // detect over temperature condition
-        if (temp_values[curr_chan] > TEMP_ADC_THRESH)
+        if (temp_values[curr_chan] > temp_adc_thresh)
         {
             // send a power-off request to the backend
             uint32_t value = CMD_BUILD(module_id, CMD_RESPONSE, 0);
@@ -165,6 +165,13 @@ int main()
                     value = Xil_In32(GPIO_1);
                     value = (value >> GPIO_OFF(cmd_buf)) & GPIO_MASK(cmd_buf);
                     break;
+
+                /*
+                case UPDATE_REG:
+                    value = temp_adc_thresh;
+                    temp_adc_thresh = cmd_buf & 0xFFFF;
+                    break;
+                */
 
                 default: break;
             }
