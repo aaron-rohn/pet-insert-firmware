@@ -5,6 +5,12 @@
 #include "custom_iic.h"
 #include "custom_spi.h"
 #include "custom_gpio.h"
+#include "custom_intc.h"
+#include "custom_timer.h"
+
+void timer_handler()
+{
+}
 
 int main()
 {
@@ -12,6 +18,8 @@ int main()
 
     SPI_RST();
     SPI_INIT();
+
+    INTC_ENABLE(timer_handler);
 
     uint8_t ch = 0;
     uint32_t vals[4] = {0};
