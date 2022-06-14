@@ -26,6 +26,7 @@ typedef enum {
     GPIO_FRONTEND,  // frontend, 0xB
 
     COUNTER_READ,   // backend, 0xC
+    UPDATE_REG,     // backend or frontend, 0xD
 
     // indicate that a reply is pending from the frontend
     CMD_RESPONSE = 0xF

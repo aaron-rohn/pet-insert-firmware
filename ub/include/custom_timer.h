@@ -26,15 +26,14 @@
 #define TIMER_TCSR_UDT   (1 << 1)
 #define TIMER_TCSR_MDT   (1 << 0)
 
+#define TCSR0_DEFAULT (TIMER_TCSR_CASC | TIMER_TCSR_UDT | TIMER_TCSR_ENIT)
+
 #define TIMER_INIT(value) ({\
-        *TIMER_TCSR0 &= ~TIMER_TCSR_ENT;\
+        *TIMER_TCSR0 = 0; \
+        *TIMER_TCSR1 = 0; \
         *TIMER_TLR0 = (value & 0xFFFFFFFF); \
         *TIMER_TLR1 = (value >> 32); \
-        *TIMER_TCSR0 |= (TIMER_TCSR_CASC | TIMER_TCSR_UDT | TIMER_TCSR_ENIT); \
-        })
-
-#define TIMER_RESTART(value) ({\
-        *TIMER_TCSR0 &= ~TIMER_TCSR_ENT;  \
+        *TIMER_TCSR0 = TCSR0_DEFAULT; \
         *TIMER_TCSR0 |= TIMER_TCSR_LOAD;  \
         *TIMER_TCSR1 |= TIMER_TCSR_LOAD;  \
         *TIMER_TCSR0 &= ~TIMER_TCSR_LOAD; \

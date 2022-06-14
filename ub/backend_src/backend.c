@@ -8,18 +8,48 @@
 #include "custom_intc.h"
 #include "custom_timer.h"
 
+#define TIME_60S ((uint64_t)6000000000)
+#define TIME_30S ((uint64_t)3000000000)
+#define TIME_10S ((uint64_t)1000000000)
+#define TIME_1S  ((uint64_t)100000000)
+
+void timer_handler() __attribute__((fast_interrupt));
 void timer_handler()
 {
+    static uint8_t eth_on = 1;
+
+    TIMER_INT_CLEAR();
+
+    if (eth_on == 1)
+    {
+        *GPIO0 &= ~GPIO_STATUS_NET;
+    }
+    else
+    {
+        *GPIO0 |= GPIO_STATUS_NET;
+    }
+
+    eth_on = !eth_on;
+    TIMER_INIT(TIME_60S);
 }
 
 int main()
 {
-    GPIO_SET_FPGA_LED();
+    // Begin initialization
+
+    microblaze_enable_interrupts();
+
+    *GPIO0 &= ~(GPIO_SOFT_RST | GPIO_STATUS_NET | GPIO_STATUS_FPGA);
+    *GPIO0 |= (GPIO_STATUS_NET | GPIO_STATUS_FPGA);
+    TIMER_INT_CLEAR();
 
     SPI_RST();
     SPI_INIT();
 
     INTC_ENABLE(timer_handler);
+    TIMER_INIT(TIME_60S);
+
+    // End initialization
 
     uint8_t ch = 0;
     uint32_t vals[4] = {0};
@@ -43,6 +73,7 @@ int main()
         if (SPI_RX_VALID())
         {
             cmd = SPI_READ();
+            TIMER_INIT(TIME_60S);
         }
 
         // handle commands
@@ -75,7 +106,6 @@ int main()
                     cmd = handle_counter(cmd);
                     break;
 
-                /*
                 case UPDATE_REG:
                     if (cmd >> 16 == 0) {
                         value = current_adc_thresh;
@@ -84,7 +114,6 @@ int main()
                         break;
                     };
                     // else fall through
-                */
 
                 default:
                     // forward the command to the indicated module
@@ -106,11 +135,9 @@ int main()
             getdfslx(value, i, FSL_NONBLOCKING);
             fsl_isinvalid(invalid);
 
-            /*
-             * Only send responses to the workstation if the
-             * power should be on. Sometimes some invalid data
-             * is generated when powering off the module
-             */
+            // Only send responses to the workstation if the
+            // power should be on. Sometimes some invalid data
+            // is generated when powering off the module
             if (!invalid && MODULE_PWR_IS_SET(i))
             {
                 // frontend module indicates over-temperature
