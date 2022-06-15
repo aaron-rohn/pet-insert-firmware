@@ -43,4 +43,11 @@
 
 #define TIMER_INT_CLEAR() ({ *TIMER_TCSR0 |= TIMER_TCSR_INT; })
 
+#define TIME_60S ((uint64_t)6000000000)
+#define TIME_30S ((uint64_t)3000000000)
+#define TIME_10S ((uint64_t)1000000000)
+#define TIME_1S  ((uint64_t)100000000)
+
+void timer_handler() __attribute__((fast_interrupt));
+
 #endif

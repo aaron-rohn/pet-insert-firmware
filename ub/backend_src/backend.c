@@ -8,12 +8,9 @@
 #include "custom_intc.h"
 #include "custom_timer.h"
 
-#define TIME_60S ((uint64_t)6000000000)
-#define TIME_30S ((uint64_t)3000000000)
-#define TIME_10S ((uint64_t)1000000000)
-#define TIME_1S  ((uint64_t)100000000)
+extern uint32_t current_values[];
+extern uint32_t current_thresh;
 
-void timer_handler() __attribute__((fast_interrupt));
 void timer_handler()
 {
     static uint8_t eth_on = 1;
@@ -39,36 +36,27 @@ int main()
 
     microblaze_enable_interrupts();
 
-    *GPIO0 &= ~(GPIO_SOFT_RST | GPIO_STATUS_NET | GPIO_STATUS_FPGA);
+    *GPIO0 &= ~GPIO_SOFT_RST;
     *GPIO0 |= (GPIO_STATUS_NET | GPIO_STATUS_FPGA);
     TIMER_INT_CLEAR();
 
     SPI_RST();
     SPI_INIT();
 
-    INTC_ENABLE(timer_handler);
+    INTC_REGISTER(timer_handler, 0);
+    INTC_REGISTER(backend_iic_handler, 1);
+    INTC_ENABLE(0x3);
     TIMER_INIT(TIME_60S);
+
+    *IIC_SOFTR = IIC_SOFTR_RKEY;
+    *IIC_GIE = IIC_GIE_gie;
+    *IIC_IER = IIC_ISR4;
 
     // End initialization
 
-    uint8_t ch = 0;
-    uint32_t vals[4] = {0};
-    uint16_t current_adc_thresh = 1500;
-
 	while(1)
 	{
-        // measure current on each loop
-
-        vals[ch] = backend_current_read(ch);
-        if (vals[ch] > current_adc_thresh)
-        {
-            // power off module in case of over-current
-            MODULE_CLR_PWR(ch);
-        }
-        ch = (ch + 1) % 4;
-
         // check for command from workstation
-
         uint32_t cmd = 0;
         if (SPI_RX_VALID())
         {
@@ -99,7 +87,7 @@ int main()
 
                 case GET_CURRENT:
                     value = CMD_MODULE_LOWER(cmd);
-                    CMD_SET_PAYLOAD(cmd, vals[value]);
+                    CMD_SET_PAYLOAD(cmd, current_values[value]);
                     break;
 
                 case COUNTER_READ:
@@ -108,8 +96,8 @@ int main()
 
                 case UPDATE_REG:
                     if (cmd >> 16 == 0) {
-                        value = current_adc_thresh;
-                        current_adc_thresh = cmd & 0xFFFF;
+                        value = current_thresh;
+                        current_thresh = cmd & 0xFFFF;
                         CMD_SET_PAYLOAD(cmd, value);
                         break;
                     };

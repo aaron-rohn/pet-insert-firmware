@@ -25,10 +25,6 @@
         scratch |= (value << offset); \
         Xil_Out32(base, scratch); } while (0)
 
-#define TT_STALL    2
-#define BLK_DISABLE 3
-#define SOFT_RST    4
-
 uint8_t iic_write_buf[3] = {0};
 #define IIC_BUF_SET(b0,b1,b2) ({\
         iic_write_buf[0] = b0; \

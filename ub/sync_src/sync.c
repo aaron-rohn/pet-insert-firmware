@@ -16,7 +16,7 @@ int main()
     // preserve the state of the air flow valve between resets
     uint8_t iic_write_buf[] = {0,0,0};
 
-    GPIO_SET_FPGA_LED();
+    *GPIO0 |= GPIO_STATUS_FPGA;
 
     SPI_RST();
     SPI_INIT();
@@ -43,17 +43,14 @@ int main()
             {
                 case RST:
                     // set the reset bit
-                    value = GPIO_RD_O();
-                    GPIO_WR_O(value | MODULE_RST_BIT);
+                    *GPIO0 |= MODULE_RST_BIT;
 
                     // wait for rst ack
-                    do value = GPIO_RD_I();
-                    while ((value & MODULE_RST_ACK) == 0);
+                    while ((*GPIO1 & MODULE_RST_ACK) == 0)
+                        ;
 
                     // unset reset bit
-                    value = GPIO_RD_O();
-                    GPIO_WR_O(value & ~MODULE_RST_BIT);
-
+                    *GPIO0 &= ~MODULE_RST_BIT;
                     cmd = CMD_EMPTY | 0x1;
                     break;
 

@@ -13,14 +13,14 @@ uint32_t handle_gpio(uint32_t cmd)
     if (GPIO_RW(cmd))
     {
         // write to bank 0
-        value = GPIO_RD_O();
+        value = *GPIO0;
         value &= ~(GPIO_MASK(cmd) << GPIO_OFF(cmd));
         value |= (GPIO_MASK(cmd) & GPIO_VALUE(cmd)) << GPIO_OFF(cmd);
-        GPIO_WR_O(value);
+        *GPIO0 = value;
     }
 
     // read back from the specified bank
-    value = GPIO_RD(GPIO_BANK(cmd));
+    value = *(GPIO_BANK(cmd) ? GPIO1 : GPIO0);
     value = (value >> GPIO_OFF(cmd)) & GPIO_MASK(cmd);
 
     CMD_SET_PAYLOAD(cmd, value);
@@ -32,7 +32,7 @@ uint32_t handle_counter(uint32_t cmd)
     uint8_t module = CMD_MODULE_LOWER(cmd);
     uint8_t channel = SEL_COUNTER(cmd);
 
-    uint32_t value = GPIO_RD_O();
+    uint32_t value = *GPIO0;
 
     // clear module_select, channel_select, and channel_load
     value &= ~((0x3 << 8) | (0x3 << 10) | (0xF << 12));
@@ -41,13 +41,13 @@ uint32_t handle_counter(uint32_t cmd)
     value |= ((module << 8) | (channel << 10));
 
     // write the select values and read the counter value
-    GPIO_WR_O(value);
-    uint32_t counter_val = GPIO_RD_I();
+    *GPIO0 = value;
+    uint32_t counter_val = *GPIO1;
 
     // toggle the 'load' signal for the appropriate channel
     uint8_t channel_load_mask = 1 << channel;
-    GPIO_WR_O(value | (channel_load_mask << 12));
-    GPIO_WR_O(value);
+    *GPIO0 = value | (channel_load_mask << 12);
+    *GPIO0 = value;
 
     CMD_SET_PAYLOAD(cmd, counter_val);
 

@@ -1,6 +1,10 @@
 #include <xparameters.h>
 #include "custom_command.h"
 #include "custom_iic.h"
+#include "custom_gpio.h"
+
+uint32_t current_values[4] = {10,10,10,10};
+uint32_t current_thresh = 1500;
 
 uint8_t iic_write(uint8_t addr, uint8_t send_bytes, uint8_t *send_buf)
 {
@@ -76,7 +80,7 @@ uint8_t iic_read(
     return ret;
 }
 
-// Measure current consumption of one module each loop
+/*
 uint32_t backend_current_read(uint8_t ch)
 {
     uint8_t adc_ch = ADC_CH_MAP(ch);
@@ -102,3 +106,118 @@ uint32_t backend_current_read(uint8_t ch)
 
     return (buf[0] << 4) | (buf[1] >> 4);
 }
+*/
+
+void backend_iic_handler()
+{
+    static enum iic_state_t state = WRITE;
+    static int ch = 0;
+
+    uint32_t status, tx_empty, rx_empty, nbytes;
+    uint8_t buf[2] = {0,0};
+
+    switch (state)
+    {
+        case WRITE:
+
+            *IIC_CR = 0;
+            *IIC_RX_FIFO_PIRQ = 0xF;
+            *IIC_CR = IIC_CR_txfiforst;
+            *IIC_CR = IIC_CR_enable;
+
+            // start an ADC conversion
+            *IIC_TX_FIFO = IIC_TX_FIFO_start | (ADC_ADDR << 1) | IIC_TX_FIFO_write;
+            *IIC_TX_FIFO = ADC_CONFIG_REG;
+            *IIC_TX_FIFO = ADC_CONFIG_H | (ADC_CH_MAP(ch) << 4);
+            *IIC_TX_FIFO = ADC_CONFIG_L | IIC_TX_FIFO_stop;
+
+            // wait for transmission to complete
+            state = WAIT_TOP;
+            break;
+
+        case WAIT_TOP:
+
+            // Verify that the transmission completed
+            tx_empty = *IIC_SR & IIC_SR_txfifoemp;
+            if (!tx_empty) goto err;
+
+            *IIC_CR = 0;
+            *IIC_RX_FIFO_PIRQ = 0xF;
+            *IIC_CR = IIC_CR_txfiforst;
+            *IIC_CR = IIC_CR_enable;
+
+            // Read 2-byte control reg from ADC
+            *IIC_TX_FIFO = IIC_TX_FIFO_start | (ADC_ADDR << 1) | IIC_TX_FIFO_read;
+            *IIC_TX_FIFO = IIC_TX_FIFO_stop  | 2;
+
+            state = WAIT_BOT;
+            break;
+
+        case WAIT_BOT:
+
+            status = *IIC_SR;
+            tx_empty = (status & IIC_SR_txfifoemp);
+            rx_empty = (status & IIC_SR_rxfifoemp);
+            nbytes = rx_empty ? 0 : (*IIC_RX_FIFO_OCY & 0xF) + 1;
+
+            if (!tx_empty || nbytes != 2) goto err;
+
+            buf[0] = *IIC_RX_FIFO;
+            buf[1] = *IIC_RX_FIFO;
+
+            // verify that conversion is done
+            state = buf[0] & ADC_CONFIG_OS ? RD_TOP : WAIT_TOP;
+            *IIC_CR = 0;
+            break;
+
+        case RD_TOP:
+
+            *IIC_CR = 0;
+            *IIC_RX_FIFO_PIRQ = 0xF;
+            *IIC_CR = IIC_CR_txfiforst;
+            *IIC_CR = IIC_CR_enable;
+
+            // set pointer to conversion register
+            *IIC_TX_FIFO = IIC_TX_FIFO_start | (ADC_ADDR << 1) | IIC_TX_FIFO_write;
+            *IIC_TX_FIFO = ADC_CONFIG_REG;
+
+            // read back conversion value
+            *IIC_TX_FIFO = IIC_TX_FIFO_start | (ADC_ADDR << 1) | IIC_TX_FIFO_read;
+            *IIC_TX_FIFO = IIC_TX_FIFO_stop  | 2;
+
+            status = RD_BOT;
+            break;
+
+        case RD_BOT:
+
+            status = *IIC_SR;
+            tx_empty = (status & IIC_SR_txfifoemp);
+            rx_empty = (status & IIC_SR_rxfifoemp);
+            nbytes = rx_empty ? 0 : (*IIC_RX_FIFO_OCY & 0xF) + 1;
+
+            if (!tx_empty || nbytes != 2) goto err;
+
+            buf[0] = *IIC_RX_FIFO;
+            buf[1] = *IIC_RX_FIFO;
+
+            current_values[ch] = (buf[0] << 4) | (buf[1] >> 4);
+
+            if (current_values[ch] > current_thresh)
+            {
+                MODULE_CLR_PWR(ch);
+            }
+
+            ch = (ch + 1) % 4;
+            *IIC_CR = 0;
+            status = WRITE;
+            break;
+    }
+
+    return;
+
+err:
+    *IIC_SOFTR = IIC_SOFTR_RKEY;
+    state = WRITE;
+    return;
+}
+

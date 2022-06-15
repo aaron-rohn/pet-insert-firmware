@@ -18,10 +18,12 @@
 
 #define INTC_IVAR ((volatile unsigned long*)(INTC_BASE + 0x100))
 
-#define INTC_ENABLE(handler) ({\
-        *INTC_IMR  = 0x1;\
-        *INTC_IVAR = ((unsigned long)(handler));\
-        *INTC_IER  = 0x1;\
+#define INTC_REGISTER(handler, num) ({\
+        *(INTC_IVAR + (num << 2)) = ((unsigned long)(handler)); })
+
+#define INTC_ENABLE(mask) ({\
+        *INTC_IMR  = mask;\
+        *INTC_IER  = mask;\
         *INTC_MER  = 0x3;\
 })
 

@@ -100,8 +100,18 @@
 #define IIC_ERR_TXERR   0x1
 #define IIC_ERR_RXERR   0x2
 
+enum iic_state_t {
+    WRITE, 
+    WAIT_TOP,
+    WAIT_BOT,
+    RD_TOP, 
+    RD_BOT
+};
+
 uint8_t iic_write(uint8_t addr, uint8_t send_bytes, uint8_t *send_buf);
 uint8_t iic_read(uint8_t addr, uint8_t send_bytes, uint8_t *send_buf, uint8_t recv_bytes, uint8_t *recv_buf);
 uint32_t backend_current_read(uint8_t ch);
+
+void backend_iic_handler() __attribute__((fast_interrupt));
 
 #endif

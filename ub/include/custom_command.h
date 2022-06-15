@@ -85,15 +85,6 @@ typedef enum {
 #define GPIO_MASK(cmd)  ((cmd >>  4) & 0x0F)
 #define GPIO_VALUE(cmd) ((cmd >>  0) & 0x0F)
 
-#define GPIO_SET_FPGA_LED() Xil_Out32(XPAR_GPIO_0_BASEADDR, 0x1 << 1);
-
-#define GPIO_RD_O()     Xil_In32(XPAR_GPIO_0_BASEADDR)
-#define GPIO_WR_O(val)  Xil_Out32(XPAR_GPIO_0_BASEADDR, val);
-#define GPIO_RD_I()     Xil_In32(XPAR_GPIO_0_BASEADDR + 0x8)
-
-#define GPIO_RD(bank) \
-    Xil_In32(XPAR_GPIO_0_BASEADDR + (bank ? 0x8 : 0x0))
-
 /*
  * Counter_read
  * 18 bits: X
