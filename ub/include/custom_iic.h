@@ -39,20 +39,13 @@
 #define IIC_ISR0         (1 << 0) // Arbitration lost
 #define IIC_ISR1         (1 << 1) // (TX) TX error / (RX) transmit complete
 #define IIC_ISR2         (1 << 2) // TX FIFO empty
-#define IIC_ISR3         (1 << 3) // TX FIFO full
+#define IIC_ISR3         (1 << 3) // RX FIFO full
 #define IIC_ISR4         (1 << 4) // IIC bus not busy
 #define IIC_ISR5         (1 << 5) // Addressed as slave
 #define IIC_ISR6         (1 << 6) // Not addressed as slave
 #define IIC_ISR7         (1 << 7) // TX FIFO half empty
 
-#define IIC_IER0         (1 << 0)
-#define IIC_IER1         (1 << 1)
-#define IIC_IER2         (1 << 2)
-#define IIC_IER3         (1 << 3)
-#define IIC_IER4         (1 << 4)
-#define IIC_IER5         (1 << 5)
-#define IIC_IER6         (1 << 6)
-#define IIC_IER7         (1 << 7)
+#define IIC_ISR_DEFAULT (IIC_ISR4)
 
 /*
  * Write the RKEY value to IIC_SOFTR to initiate a reset of the core
@@ -87,10 +80,10 @@
  * the value written to the TX FIFO is the number of bytes to receive.
  */
 
-#define IIC_TX_FIFO_stop  (1 << 9) // Dynamic stop bit
-#define IIC_TX_FIFO_start (1 << 8) // Dynamic start bit
-#define IIC_TX_FIFO_read  (1 << 0) // Perform dynamic read
-#define IIC_TX_FIFO_write (0 << 0) // Perform dynamic write
+#define IIC_stop  (1 << 9) // Dynamic stop bit
+#define IIC_start (1 << 8) // Dynamic start bit
+#define IIC_read  (1 << 0) // Perform dynamic read
+#define IIC_write (0 << 0) // Perform dynamic write
 
 #define DAC_ADDR 0x4C
 #define ADC_ADDR 0x48
@@ -99,6 +92,23 @@
 #define IIC_SUCCESS     0x0
 #define IIC_ERR_TXERR   0x1
 #define IIC_ERR_RXERR   0x2
+
+#define IIC_WR(byte) ({ *IIC_TX_FIFO = (byte); })
+#define IIC_RD(buf, n) ({\
+        for (unsigned long i = 0; i < n; i++) buf[i] = *IIC_RX_FIFO;\
+})
+
+#define IIC_INIT(mask) ({\
+    *IIC_SOFTR = IIC_SOFTR_RKEY;\
+    *IIC_GIE = IIC_GIE_gie;\
+    *IIC_IER = (mask);\
+})
+
+#define IIC_BEGIN() ({\
+    *IIC_RX_FIFO_PIRQ = 0x0F;\
+    *IIC_CR = IIC_CR_txfiforst;\
+    *IIC_CR = IIC_CR_enable;\
+})
 
 enum iic_state_t {
     WRITE, 
@@ -110,7 +120,7 @@ enum iic_state_t {
 
 uint8_t iic_write(uint8_t addr, uint8_t send_bytes, uint8_t *send_buf);
 uint8_t iic_read(uint8_t addr, uint8_t send_bytes, uint8_t *send_buf, uint8_t recv_bytes, uint8_t *recv_buf);
-uint32_t backend_current_read(uint8_t ch);
+//uint32_t backend_current_read(uint8_t ch);
 
 void backend_iic_handler() __attribute__((fast_interrupt));
 

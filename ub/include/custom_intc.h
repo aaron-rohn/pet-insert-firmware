@@ -16,14 +16,21 @@
 #define INTC_IMR ((volatile uint32_t*)(INTC_BASE + 0x20))
 #define INTC_ILR ((volatile uint32_t*)(INTC_BASE + 0x24))
 
-#define INTC_IVAR ((volatile unsigned long*)(INTC_BASE + 0x100))
+#define INTC_TIMER      XPAR_AXI_INTC_0_AXI_TIMER_0_INTERRUPT_INTR
+#define INTC_TIMER_MASK XPAR_AXI_TIMER_0_INTERRUPT_MASK
+#define INTC_IIC        XPAR_AXI_INTC_0_AXI_IIC_0_IIC2INTC_IRPT_INTR
+#define INTC_IIC_MASK   XPAR_AXI_IIC_0_IIC2INTC_IRPT_MASK
+#define INTC_SPI        XPAR_AXI_INTC_0_AXI_QUAD_SPI_0_IP2INTC_IRPT_INTR
+#define INTC_SPI_MASK   XPAR_AXI_QUAD_SPI_0_IP2INTC_IRPT_MASK
 
+#define INTC_IVAR ((volatile unsigned long*)(INTC_BASE + 0x100))
 #define INTC_REGISTER(handler, num) ({\
-        *(INTC_IVAR + (num << 2)) = ((unsigned long)(handler)); })
+        *(INTC_IVAR + (num)) = ((unsigned long)(handler));\
+})
 
 #define INTC_ENABLE(mask) ({\
-        *INTC_IMR  = mask;\
-        *INTC_IER  = mask;\
+        *INTC_IMR  = (mask);\
+        *INTC_IER  = (mask);\
         *INTC_MER  = 0x3;\
 })
 

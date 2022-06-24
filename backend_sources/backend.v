@@ -195,7 +195,7 @@ module backend #(
 
     low_speed_interface_wrapper low_speed_inst (
         .clk(sys_clk),
-        .rst(1'b0),
+        .rst(soft_rst),
 
         .gpio_i_tri_i(gpio_i),
         .gpio_o_tri_o(gpio_o),

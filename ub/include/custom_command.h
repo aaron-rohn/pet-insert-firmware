@@ -58,7 +58,7 @@ typedef enum {
 
 #define ADC_CONFIG_OS           (1 << 7)
 #define ADC_CONFIG_H            (ADC_CONFIG_OS | 1 << 6 | 0x2 << 1 | 1)
-#define ADC_CONFIG_L            (0x7 << 5 | 0x3)
+#define ADC_CONFIG_L            (0x0 << 5 | 0x3)
 
 // Backend values
 

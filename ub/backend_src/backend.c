@@ -8,7 +8,7 @@
 #include "custom_intc.h"
 #include "custom_timer.h"
 
-extern uint32_t current_values[];
+extern volatile uint32_t current_values[];
 extern uint32_t current_thresh;
 
 void timer_handler()
@@ -34,23 +34,22 @@ int main()
 {
     // Begin initialization
 
-    microblaze_enable_interrupts();
-
     *GPIO0 &= ~GPIO_SOFT_RST;
     *GPIO0 |= (GPIO_STATUS_NET | GPIO_STATUS_FPGA);
     TIMER_INT_CLEAR();
+    *IIC_SOFTR = IIC_SOFTR_RKEY;
+
+    microblaze_enable_interrupts();
+
+    INTC_REGISTER(timer_handler, INTC_TIMER);
+    INTC_REGISTER(backend_iic_handler, INTC_IIC);
+    INTC_ENABLE(INTC_TIMER_MASK | INTC_IIC_MASK);
+
+    TIMER_INIT(TIME_60S);
+    IIC_INIT(IIC_ISR_DEFAULT);
 
     SPI_RST();
     SPI_INIT();
-
-    INTC_REGISTER(timer_handler, 0);
-    INTC_REGISTER(backend_iic_handler, 1);
-    INTC_ENABLE(0x3);
-    TIMER_INIT(TIME_60S);
-
-    *IIC_SOFTR = IIC_SOFTR_RKEY;
-    *IIC_GIE = IIC_GIE_gie;
-    *IIC_IER = IIC_ISR4;
 
     // End initialization
 
