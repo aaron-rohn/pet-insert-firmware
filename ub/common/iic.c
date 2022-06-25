@@ -80,40 +80,13 @@ uint8_t iic_read(
     return ret;
 }
 
-/*
-uint32_t backend_current_read(uint8_t ch)
-{
-    uint8_t adc_ch = ADC_CH_MAP(ch);
-    uint8_t buf[3] = {ADC_CONFIG_REG, ADC_CONFIG_H | (adc_ch << 4), ADC_CONFIG_L};
-    uint8_t iic_return = iic_write(ADC_ADDR, sizeof(buf), buf);
-
-    buf[0] = 0;
-    buf[1] = 0;
-
-    // wait until ADC conversion is complete
-    while (iic_return == IIC_SUCCESS && (buf[0] & ADC_CONFIG_OS) == 0)
-    {
-        iic_return = iic_read(ADC_ADDR, 0, NULL, 2, buf);
-    }
-
-    if (iic_return == IIC_SUCCESS)
-    {
-        // Read back conversion value
-        buf[0] = ADC_CONVERSION_REG;
-        buf[1] = 0;
-        iic_return = iic_read(ADC_ADDR, 1, buf, 2, buf);
-    }
-
-    return (buf[0] << 4) | (buf[1] >> 4);
-}
-*/
-
 void backend_iic_handler()
 {
+    static const uint8_t ch_map[4] = {1,0,3,2};
     static enum iic_state_t state = WRITE;
     static int ch = 0;
     static uint8_t buf[2] = {0,0};
-    const unsigned long n = sizeof(buf);
+    static const unsigned long n = sizeof(buf);
 
     uint32_t status = *IIC_SR;
     uint32_t tx_empty = (status & IIC_SR_txfifoemp);
@@ -132,7 +105,7 @@ restart:
             // start an ADC conversion
             IIC_WR(IIC_start | (ADC_ADDR << 1) | IIC_write);
             IIC_WR(ADC_CONFIG_REG);
-            IIC_WR(ADC_CONFIG_H | (ADC_CH_MAP(ch) << 4));
+            IIC_WR(ADC_CONFIG_H | (ch_map[ch] << 4));
             IIC_WR(IIC_stop | ADC_CONFIG_L);
 
             state = WAIT_TOP;
@@ -161,11 +134,9 @@ restart:
         case RD_TOP:
             IIC_BEGIN();
 
-            // set pointer to conversion register
+            // read back conversion value
             IIC_WR(IIC_start | (ADC_ADDR << 1) | IIC_write);
             IIC_WR(ADC_CONVERSION_REG);
-
-            // read back conversion value
             IIC_WR(IIC_start | (ADC_ADDR << 1) | IIC_read);
             IIC_WR(IIC_stop  | n);
 
@@ -178,6 +149,12 @@ restart:
 
             IIC_RD(buf, n);
             current_values[ch] = (buf[0] << 4) | (buf[1] >> 4);
+
+            if (current_values[ch] > current_thresh)
+            {
+                // shut off module due to over-current
+                MODULE_CLR_PWR(ch);
+            }
 
             ch = (ch + 1) % 4;
             state = WRITE;

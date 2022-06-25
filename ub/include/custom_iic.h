@@ -87,7 +87,6 @@
 
 #define DAC_ADDR 0x4C
 #define ADC_ADDR 0x48
-#define ADC_CH_MAP(ch) ((uint8_t[]){1,0,3,2}[ch])
 
 #define IIC_SUCCESS     0x0
 #define IIC_ERR_TXERR   0x1
@@ -120,8 +119,6 @@ enum iic_state_t {
 
 uint8_t iic_write(uint8_t addr, uint8_t send_bytes, uint8_t *send_buf);
 uint8_t iic_read(uint8_t addr, uint8_t send_bytes, uint8_t *send_buf, uint8_t recv_bytes, uint8_t *recv_buf);
-//uint32_t backend_current_read(uint8_t ch);
-
 void backend_iic_handler() __attribute__((fast_interrupt));
 
 #endif

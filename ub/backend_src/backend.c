@@ -11,25 +11,6 @@
 extern volatile uint32_t current_values[];
 extern uint32_t current_thresh;
 
-void timer_handler()
-{
-    static uint8_t eth_on = 1;
-
-    TIMER_INT_CLEAR();
-
-    if (eth_on == 1)
-    {
-        *GPIO0 &= ~GPIO_STATUS_NET;
-    }
-    else
-    {
-        *GPIO0 |= GPIO_STATUS_NET;
-    }
-
-    eth_on = !eth_on;
-    TIMER_INIT(TIME_60S);
-}
-
 int main()
 {
     // Begin initialization
@@ -37,18 +18,15 @@ int main()
     *GPIO0 &= ~GPIO_SOFT_RST;
     *GPIO0 |= (GPIO_STATUS_NET | GPIO_STATUS_FPGA);
     TIMER_INT_CLEAR();
-    *IIC_SOFTR = IIC_SOFTR_RKEY;
+    SPI_RST();
 
     microblaze_enable_interrupts();
-
     INTC_REGISTER(timer_handler, INTC_TIMER);
     INTC_REGISTER(backend_iic_handler, INTC_IIC);
     INTC_ENABLE(INTC_TIMER_MASK | INTC_IIC_MASK);
 
     TIMER_INIT(TIME_60S);
     IIC_INIT(IIC_ISR_DEFAULT);
-
-    SPI_RST();
     SPI_INIT();
 
     // End initialization
@@ -94,7 +72,7 @@ int main()
                     break;
 
                 case UPDATE_REG:
-                    if (cmd >> 16 == 0) {
+                    if (UPDATE_REG_BACKEND(cmd)) {
                         value = current_thresh;
                         current_thresh = cmd & 0xFFFF;
                         CMD_SET_PAYLOAD(cmd, value);

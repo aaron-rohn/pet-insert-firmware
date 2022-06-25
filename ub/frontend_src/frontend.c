@@ -1,13 +1,9 @@
 #include <xparameters.h>
 #include <fsl.h>
 #include <xil_io.h>
+#include "custom_gpio.h"
 #include "custom_command.h"
 #include "custom_iic.h"
-
-#define GPIO_0 XPAR_AXI_GPIO_0_BASEADDR
-#define GPIO_1 (XPAR_AXI_GPIO_0_BASEADDR + 0x8)
-#define GPIO_2 XPAR_AXI_GPIO_1_BASEADDR
-#define GPIO_3 (XPAR_AXI_GPIO_1_BASEADDR + 0x8)
 
 #define DAC_ADDR 			0x4C
 #define DAC_WRITE_UPDATE	0x30
@@ -15,15 +11,6 @@
 #define ADC0_ADDR 			0x48
 #define ADC1_ADDR			0x49
 #define THRESH_DEFAULT 		0x6B7 // 50mV
-#define GPIO0_IN()	        Xil_In32(GPIO_0)
-#define SGL_RATE_GPIO()     Xil_In32(GPIO_2)
-#define PERIOD_GPIO()       Xil_In32(GPIO_3)
-
-#define GPIO_SET(base, value, mask, offset) do { \
-        uint32_t scratch = Xil_In32(base); \
-        scratch &= ~(mask << offset); \
-        scratch |= (value << offset); \
-        Xil_Out32(base, scratch); } while (0)
 
 uint8_t iic_write_buf[3] = {0};
 #define IIC_BUF_SET(b0,b1,b2) ({\
@@ -85,7 +72,7 @@ int main()
     	iic_write(DAC_ADDR, 3, iic_write_buf);
     }
 
-    uint8_t module_id = GPIO0_IN() & 0xF;
+    uint8_t module_id = *GPIO0 & 0xF;
     uint8_t curr_chan = 0;
     uint32_t temp_values[8] = {0};
 
@@ -137,37 +124,35 @@ int main()
 
                 case PERIOD_READ:
                     divisor = cmd_buf & 0xFF;
-                    value = PERIOD_GPIO();
+                    value = *GPIO3;
                     value >>= divisor;
                     break;
 
                 case SGL_RATE_READ:
                     divisor = cmd_buf & 0xFF;
                     channel = (cmd_buf >> 8) & 0x3;
-                    GPIO_SET(GPIO_1, channel, 0x3, 0);
-                    value = SGL_RATE_GPIO();
+                    GPIO_SET(GPIO1, channel, 0x3, 0);
+                    value = *GPIO2;
                     value >>= divisor;
                     break;
 
                 case GPIO_FRONTEND:
                     if (GPIO_RW(cmd_buf))
                     {
-                        GPIO_SET(GPIO_1,
+                        GPIO_SET(GPIO1,
                                  GPIO_VALUE(cmd_buf),
                                  GPIO_MASK(cmd_buf),
                                  GPIO_OFF(cmd_buf));
                     }
 
-                    value = Xil_In32(GPIO_1);
+                    value = *GPIO1;
                     value = (value >> GPIO_OFF(cmd_buf)) & GPIO_MASK(cmd_buf);
                     break;
 
-                /*
                 case UPDATE_REG:
                     value = temp_adc_thresh;
                     temp_adc_thresh = cmd_buf & 0xFFFF;
                     break;
-                */
 
                 default: break;
             }
