@@ -13,7 +13,8 @@ flags = [
     '-std=gnu99',
     '-xc',
     '-I/home/aaron/insert/src/ub/include',
-    '-I/home/aaron/insert/ub/backend/bsp0/microblaze_0/include'
+    '-I/home/aaron/insert/src/ub/frontend/include',
+    '-I/home/aaron/insert/ub/frontend/bsp0/microblaze_0/include'
     ]
 
 SOURCE_EXTENSIONS = [ '.cpp', '.cxx', '.cc', '.c', ]

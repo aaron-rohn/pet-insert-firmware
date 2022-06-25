@@ -1,6 +1,7 @@
-#ifndef _CUSTOM_IIC_H_
-#define _CUSTOM_IIC_H_
+#ifndef _IIC_H_
+#define _IIC_H_
 
+#include "xparameters.h"
 #include "types.h"
 
 #define IIC_GIE          ((volatile uint32_t*)(XPAR_AXI_IIC_0_BASEADDR + 0x01C)) // Global interrupt enable
@@ -85,13 +86,6 @@
 #define IIC_read  (1 << 0) // Perform dynamic read
 #define IIC_write (0 << 0) // Perform dynamic write
 
-#define DAC_ADDR 0x4C
-#define ADC_ADDR 0x48
-
-#define IIC_SUCCESS     0x0
-#define IIC_ERR_TXERR   0x1
-#define IIC_ERR_RXERR   0x2
-
 #define IIC_WR(byte) ({ *IIC_TX_FIFO = (byte); })
 #define IIC_RD(buf, n) ({\
         for (unsigned long i = 0; i < n; i++) buf[i] = *IIC_RX_FIFO;\
@@ -108,17 +102,5 @@
     *IIC_CR = IIC_CR_txfiforst;\
     *IIC_CR = IIC_CR_enable;\
 })
-
-enum iic_state_t {
-    WRITE, 
-    WAIT_TOP,
-    WAIT_BOT,
-    RD_TOP, 
-    RD_BOT
-};
-
-uint8_t iic_write(uint8_t addr, uint8_t send_bytes, uint8_t *send_buf);
-uint8_t iic_read(uint8_t addr, uint8_t send_bytes, uint8_t *send_buf, uint8_t recv_bytes, uint8_t *recv_buf);
-void backend_iic_handler() __attribute__((fast_interrupt));
 
 #endif

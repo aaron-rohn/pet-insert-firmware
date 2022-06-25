@@ -1,5 +1,5 @@
-#ifndef _CUSTOM_TIMER_H_
-#define _CUSTOM_TIMER_H_
+#ifndef _BACKEND_TIMER_H_
+#define _BACKEND_TIMER_H_
 
 #include "xparameters.h"
 #include "types.h"

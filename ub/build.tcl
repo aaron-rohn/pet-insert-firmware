@@ -26,8 +26,9 @@ proc build { ws_path src_path inc_path } {
     configapp -app ub0 compiler-optimization {Optimize more (-O2)}
     #configapp -app ub0 compiler-misc {-g}
 
-    set inc_base [file join $ws_path bsp0/microblaze_0/include]
-    foreach inc [list $inc_path $inc_base] {
+    lappend inc_path [file join $ws_path bsp0/microblaze_0/include]
+    foreach inc $inc_path {
+        puts $inc
         configapp -app ub0 include-path $inc
     }
 
@@ -38,10 +39,10 @@ proc build { ws_path src_path inc_path } {
 #      {/home/aaron/insert/src/ub/sync_src /home/aaron/insert/src/ub/common} \
 #      /home/aaron/insert/src/ub/include
 
-build /home/aaron/insert/ub/backend \
-      {/home/aaron/insert/src/ub/backend_src /home/aaron/insert/src/ub/common} \
-      /home/aaron/insert/src/ub/include
+#build /home/aaron/insert/ub/backend \
+#      {/home/aaron/insert/src/ub/backend/src} \
+#      {/home/aaron/insert/src/ub/include /home/aaron/insert/src/ub/backend/include}
 
-#build /home/aaron/insert/ub/frontend \
-#      {/home/aaron/insert/src/ub/frontend_src /home/aaron/insert/src/ub/common} \
-#      /home/aaron/insert/src/ub/include
+build /home/aaron/insert/ub/frontend \
+      {/home/aaron/insert/src/ub/frontend/src} \
+      {/home/aaron/insert/src/ub/include /home/aaron/insert/src/ub/frontend/include}

@@ -1,75 +1,32 @@
 #include <xparameters.h>
 #include <fsl.h>
 #include <xil_io.h>
-#include "custom_gpio.h"
-#include "custom_command.h"
-#include "custom_iic.h"
+#include "intc.h"
+#include "command.h"
+#include "frontend_gpio.h"
+#include "frontend_iic.h"
 
-#define DAC_ADDR 			0x4C
-#define DAC_WRITE_UPDATE	0x30
-#define DAC_RST	 			0x70
-#define ADC0_ADDR 			0x48
-#define ADC1_ADDR			0x49
-#define THRESH_DEFAULT 		0x6B7 // 50mV
-
-uint8_t iic_write_buf[3] = {0};
-#define IIC_BUF_SET(b0,b1,b2) ({\
-        iic_write_buf[0] = b0; \
-        iic_write_buf[1] = b1; \
-        iic_write_buf[2] = b2; })
-
-uint32_t read_adc_temp(uint8_t channel)
-{
-    // ADC0 -> channels 0-3, ADC1 -> channels 4-7
-    uint8_t adc_addr = channel < 4 ? ADC0_ADDR : ADC1_ADDR;
-    // map system channel to ADC0/1 channel
-    channel %= 4;
-
-    // Initiate a conversion
-    IIC_BUF_SET(ADC_CONFIG_REG, ADC_CONFIG_H | (channel << 4), ADC_CONFIG_L);
-    uint8_t iic_return = iic_write(adc_addr, 3, iic_write_buf);
-
-    // Wait until conversion finishes
-    IIC_BUF_SET(0xFF,0,0);
-    while (iic_return == IIC_SUCCESS && (iic_write_buf[0] & ADC_CONFIG_OS) == 0)
-    {
-        iic_return = iic_read(adc_addr, 0, NULL, 2, iic_write_buf);
-    }
-
-    // Read back conversion value
-    IIC_BUF_SET(ADC_CONVERSION_REG, 0, 0);
-    iic_read(adc_addr, 1, iic_write_buf, 2, iic_write_buf);
-    return (iic_write_buf[0] << 4) | (iic_write_buf[1] >> 4);
-}
-
-void dac_write(uint32_t cmd_buf)
-{
-    uint8_t dac_cmd = CMD_DAC_COMMAND(cmd_buf);
-    uint8_t channel = CMD_DAC_CHANNEL(cmd_buf);
-    uint32_t value  = CMD_DAC_VAL(cmd_buf);
-    IIC_BUF_SET((dac_cmd << 4) | channel, (value >> 8) & 0xFF, value & 0xFF);
-    iic_write(DAC_ADDR, 3, iic_write_buf);
-}
-
-uint32_t dac_read(uint8_t channel)
-{
-    IIC_BUF_SET(0x10 | channel, 0, 0);
-    iic_read(DAC_ADDR, 1, iic_write_buf, 2, iic_write_buf);
-    return (iic_write_buf[0] << 4) | (iic_write_buf[1] >> 4);
-}
+#define THRESH_DEFAULT 0x6B7 // 50mV
 
 int main()
 {
+    microblaze_enable_interrupts();
+    INTC_REGISTER(frontend_iic_handler, 0x1);
+    INTC_ENABLE(0x1);
+    IIC_INIT(IIC_ISR_DEFAULT);
+
+    uint8_t buf[3] = {0};
+
     // Soft reset the DAC
-    IIC_BUF_SET(DAC_RST, 0, 0);
-    iic_write(DAC_ADDR, 3, iic_write_buf);
+    IIC_BUF_SET(buf, DAC_RST, 0, 0);
+    iic_write(DAC_ADDR, 3, buf);
 
     for (uint8_t i = 0; i < 4; i++)
     {
     	// Set default threshold values for DAC channels 0-3
         // Bias defaults to 0 at power on/reset
-        IIC_BUF_SET(DAC_WRITE_UPDATE | i, THRESH_DEFAULT >> 4, (THRESH_DEFAULT << 4) & 0xFF);
-    	iic_write(DAC_ADDR, 3, iic_write_buf);
+        IIC_BUF_SET(buf, DAC_WRITE_UPDATE | i, THRESH_DEFAULT >> 4, (THRESH_DEFAULT << 4) & 0xFF);
+    	iic_write(DAC_ADDR, 3, buf);
     }
 
     uint8_t module_id = *GPIO0 & 0xF;
@@ -113,9 +70,9 @@ int main()
                     break;
 
                 case DAC_WRITE:
-                    dac_write(cmd_buf);
+                    //dac_write(cmd_buf);
                 case DAC_READ:
-                    value = dac_read(CMD_DAC_CHANNEL(cmd_buf));
+                    //value = dac_read(CMD_DAC_CHANNEL(cmd_buf));
                     break;
 
                 case ADC_READ:

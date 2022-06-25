@@ -1,6 +1,7 @@
-#ifndef _CUSTOM_SPI_H_
-#define _CUSTOM_SPI_H_
+#ifndef _BACKEND_SPI_H_
+#define _BACKEND_SPI_H_
 
+#include "xparameters.h"
 #include <xil_io.h>
 
 #define SPI_BASE XPAR_SPI_0_BASEADDR

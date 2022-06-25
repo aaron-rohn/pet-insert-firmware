@@ -13,6 +13,7 @@ flags = [
     '-std=gnu99',
     '-xc',
     '-I/home/aaron/insert/src/ub/include',
+    '-I/home/aaron/insert/src/ub/backend/include',
     '-I/home/aaron/insert/ub/backend/bsp0/microblaze_0/include'
     ]
 

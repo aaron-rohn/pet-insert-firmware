@@ -1,7 +1,7 @@
 #include <xparameters.h>
 #include <xil_io.h>
-#include "custom_command.h"
-#include "custom_gpio.h"
+#include "command.h"
+#include "backend_gpio.h"
 
 uint32_t handle_gpio(uint32_t cmd)
 {

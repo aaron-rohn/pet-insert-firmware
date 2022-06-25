@@ -1,12 +1,12 @@
 #include <xparameters.h>
 #include <fsl.h>
 #include <xil_io.h>
-#include "custom_command.h"
-#include "custom_iic.h"
-#include "custom_spi.h"
-#include "custom_gpio.h"
-#include "custom_intc.h"
-#include "custom_timer.h"
+#include "intc.h"
+#include "command.h"
+#include "backend_iic.h"
+#include "backend_spi.h"
+#include "backend_gpio.h"
+#include "backend_timer.h"
 
 extern volatile uint32_t current_values[];
 extern uint32_t current_thresh;
@@ -21,9 +21,9 @@ int main()
     SPI_RST();
 
     microblaze_enable_interrupts();
-    INTC_REGISTER(timer_handler, INTC_TIMER);
-    INTC_REGISTER(backend_iic_handler, INTC_IIC);
-    INTC_ENABLE(INTC_TIMER_MASK | INTC_IIC_MASK);
+    INTC_REGISTER(timer_handler, 0);
+    INTC_REGISTER(backend_iic_handler, 1);
+    INTC_ENABLE(0x3);
 
     TIMER_INIT(TIME_60S);
     IIC_INIT(IIC_ISR_DEFAULT);

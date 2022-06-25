@@ -1,5 +1,5 @@
-#ifndef _CUSTOM_COMMAND_H_
-#define _CUSTOM_COMMAND_H_
+#ifndef _COMMAND_H_
+#define _COMMAND_H_
 
 #include <xparameters.h>
 /*
