@@ -48,6 +48,7 @@ typedef enum {
 #define CMD_DAC_COMMAND(cmd)	((cmd >> 16) & 0xF)
 #define CMD_DAC_CHANNEL(cmd)	((cmd >> 12) & 0xF)
 #define CMD_DAC_VAL(cmd) 	    ((cmd & 0xFFF) << 4)
+#define CMD_DAC_BUILD(cmd,ch,val) ((cmd << 16) | (ch << 12) | val)
 
 // ADC values
 

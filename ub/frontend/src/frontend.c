@@ -8,48 +8,29 @@
 
 #define THRESH_DEFAULT 0x6B7 // 50mV
 
+extern volatile uint32_t temp_values[];
+extern uint16_t temp_adc_thresh;
+
+uint8_t module_id;
+
 int main()
 {
+    module_id = *GPIO0 & 0xF;
+
     microblaze_enable_interrupts();
     INTC_REGISTER(frontend_iic_handler, 0x1);
     INTC_ENABLE(0x1);
-    IIC_INIT(IIC_ISR_DEFAULT);
 
-    uint8_t buf[3] = {0};
-
-    // Soft reset the DAC
-    IIC_BUF_SET(buf, DAC_RST, 0, 0);
-    iic_write(DAC_ADDR, 3, buf);
-
+    QUEUE_PUT(CMD_DAC_BUILD(DAC_RST, 0, 0));
     for (uint8_t i = 0; i < 4; i++)
     {
-    	// Set default threshold values for DAC channels 0-3
-        // Bias defaults to 0 at power on/reset
-        IIC_BUF_SET(buf, DAC_WRITE_UPDATE | i, THRESH_DEFAULT >> 4, (THRESH_DEFAULT << 4) & 0xFF);
-    	iic_write(DAC_ADDR, 3, buf);
+        QUEUE_PUT(CMD_DAC_BUILD(DAC_WRITE_UPDATE, i, THRESH_DEFAULT));
     }
 
-    uint8_t module_id = *GPIO0 & 0xF;
-    uint8_t curr_chan = 0;
-    uint32_t temp_values[8] = {0};
-
-    // default temperature threshold is ~35C
-    uint16_t temp_adc_thresh = 0x3DC;
+    IIC_INIT(IIC_ISR_DEFAULT);
 
     while (1)
     {
-        // read a temperature value on each loop
-        temp_values[curr_chan] = read_adc_temp(curr_chan);
-
-        // detect over temperature condition
-        if (temp_values[curr_chan] > temp_adc_thresh)
-        {
-            // send a power-off request to the backend
-            uint32_t value = CMD_BUILD(module_id, CMD_RESPONSE, 0);
-            putfslx(value, 0, FSL_DEFAULT);
-        }
-        curr_chan = (curr_chan + 1) % 8;
-
         // read and handle commands from backend
 
         uint32_t fsl_no_data = 1, cmd_buf = 0;
@@ -70,10 +51,11 @@ int main()
                     break;
 
                 case DAC_WRITE:
-                    //dac_write(cmd_buf);
                 case DAC_READ:
-                    //value = dac_read(CMD_DAC_CHANNEL(cmd_buf));
-                    break;
+                    QUEUE_PUT(cmd_buf);
+                    // skip putting a result onto the FSL!
+                    // This will be done by the isr when the iic is complete
+                    continue;
 
                 case ADC_READ:
                     value = temp_values[CMD_ADC_CHANNEL(cmd_buf)];

@@ -103,4 +103,12 @@
     *IIC_CR = IIC_CR_enable;\
 })
 
+enum iic_state_t {
+    WRITE, 
+    WAIT_TOP,
+    WAIT_BOT,
+    RD_TOP, 
+    RD_BOT
+};
+
 #endif
