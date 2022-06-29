@@ -1,17 +1,9 @@
-#include <xparameters.h>
-#include <fsl.h>
-#include "command.h"
 #include "frontend_iic.h"
 
-extern uint8_t module_id;
-
 volatile uint32_t temp_values[8] = {0};
-
-// default temperature threshold is ~35C
-uint16_t temp_adc_thresh = 0x3DC;
-
+uint16_t temp_thresh = TEMP_THRESH_DEFAULT;
 volatile unsigned long queue_size = 0;
-uint32_t queue[QUEUE_SIZE_MAX];
+volatile uint32_t queue[QUEUE_SIZE_MAX];
 
 /*
 uint8_t iic_write(uint8_t addr, uint8_t send_bytes, uint8_t *send_buf)
@@ -133,21 +125,26 @@ uint32_t dac_read(uint8_t channel)
 }
 */
 
-cmd_t c = ADC_READ;
-enum iic_state_t state = WRITE;
-int adc_ch = 0, adc_addr = ADC0_ADDR, dac_ch = 0;
-uint8_t buf[2] = {0,0};
+volatile cmd_t c = ADC_READ;
+volatile enum iic_state_t state = WRITE;
+volatile int adc_ch = 0, dac_ch = 0, addr = ADC0_ADDR;
+volatile uint8_t buf[2] = {0,0};
 const unsigned long n = sizeof(buf);
 
 void handle_write()
 {
+    addr = (adc_ch < 4) ? ADC0_ADDR : ADC1_ADDR;
     uint32_t cmd = 0;
     c = ADC_READ;
+
     if (QUEUE_NEMPTY())
     {
         cmd = QUEUE_POP();
         c = CMD_COMMAND(cmd);
+        addr = DAC_ADDR;
     }
+
+    addr <<= 1;
 
     uint8_t dac_cmd = 0;
     uint32_t dac_val = 0;
@@ -155,13 +152,12 @@ void handle_write()
     switch(c)
     {
         case DAC_WRITE:
-
             dac_cmd = CMD_DAC_COMMAND(cmd);
             dac_ch  = CMD_DAC_CHANNEL(cmd);
             dac_val = CMD_DAC_VAL(cmd);
 
             // write the specified value to the DAC reg
-            IIC_WR(IIC_start | (DAC_ADDR << 1) | IIC_write);
+            IIC_WR(IIC_start | addr | IIC_write);
             IIC_WR((dac_cmd << 4) | dac_ch);
             IIC_WR((dac_val >> 8) & 0xFF);
             IIC_WR(IIC_stop | (dac_val & 0xFF));
@@ -171,41 +167,16 @@ void handle_write()
             break;
 
         default:
-            adc_addr = adc_ch < 4 ? ADC0_ADDR : ADC1_ADDR;
-
             // start an ADC conversion
-            IIC_WR(IIC_start | (adc_addr << 1) | IIC_write);
+            IIC_WR(IIC_start | addr | IIC_write);
             IIC_WR(ADC_CONFIG_REG);
             IIC_WR(ADC_CONFIG_H | ((adc_ch % 4) << 4));
             IIC_WR(IIC_stop | ADC_CONFIG_L);
-
             state = WAIT_TOP;
     }
 }
 
-void handle_read_top()
-{
-    switch (c)
-    {
-        case DAC_WRITE:
-        case DAC_READ:
-            // read back DAC conversion value
-            IIC_WR(IIC_start | (DAC_ADDR << 1) | IIC_write);
-            IIC_WR(0x10 | dac_ch);
-            IIC_WR(IIC_start | (DAC_ADDR << 1) | IIC_read);
-            IIC_WR(IIC_stop  | n);
-            break;
-
-        default:
-            // read back ADC conversion value
-            IIC_WR(IIC_start | (adc_addr << 1) | IIC_write);
-            IIC_WR(ADC_CONVERSION_REG);
-            IIC_WR(IIC_start | (adc_addr << 1) | IIC_read);
-            IIC_WR(IIC_stop  | n);
-    }
-}
-
-void handle_read_bot()
+void handle_read()
 {
     uint32_t value = (buf[0] << 4) | (buf[1] >> 4);
 
@@ -219,13 +190,13 @@ void handle_read_bot()
 
         default:
             temp_values[adc_ch] = value;
-            if (value > temp_adc_thresh)
+            if (value > temp_thresh)
             {
                 // send power off request to backend
                 value = CMD_BUILD(module_id, CMD_RESPONSE, 0);
                 putfslx(value, 0, FSL_DEFAULT);
             }
-            adc_ch = (adc_ch + 1) % 8;
+            adc_ch = (adc_ch + 1) % ADC_NCH;
     }
 }
 
@@ -256,7 +227,7 @@ restart:
         case WAIT_TOP:
             // Read 2-byte control reg from ADC
             IIC_BEGIN();
-            IIC_WR(IIC_start | (adc_addr << 1) | IIC_read);
+            IIC_WR(IIC_start | (addr << 1) | IIC_read);
             IIC_WR(IIC_stop  | n);
             state = WAIT_BOT;
             break;
@@ -273,7 +244,10 @@ restart:
 
         case RD_TOP:
             IIC_BEGIN();
-            handle_read_top();
+            IIC_WR(IIC_start | addr | IIC_write);
+            IIC_WR(c == ADC_READ ? ADC_CONVERSION_REG : 0x10 | dac_ch);
+            IIC_WR(IIC_start | addr | IIC_read);
+            IIC_WR(IIC_stop  | n);
             state = RD_BOT;
             break;
 
@@ -283,7 +257,7 @@ restart:
                 goto err;
 
             IIC_RD(buf, n);
-            handle_read_bot();
+            handle_read();
             state = WRITE;
             goto restart;
     }

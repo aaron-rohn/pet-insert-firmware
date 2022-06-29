@@ -3,6 +3,7 @@
 
 #include "types.h"
 #include "iic.h"
+#include "command.h"
 #include <fsl.h>
 
 #define ADC0_ADDR 			0x48
@@ -12,7 +13,11 @@
 //#define DAC_RST	 			0x70
 #define DAC_WRITE_UPDATE	0x3
 #define DAC_RST	 			0x7
+#define THRESH_DEFAULT      0x6B7 // 50mV
+#define TEMP_THRESH_DEFAULT 0x3DC // ~35C
+#define ADC_NCH             8
 
+/*
 #define IIC_SUCCESS     0x0
 #define IIC_ERR_TXERR   0x1
 #define IIC_ERR_RXERR   0x2
@@ -21,10 +26,11 @@
         buf[0] = b0;\
         buf[1] = b1;\
         buf[2] = b2; })
+*/
 
 #define QUEUE_SIZE_MAX 32UL
 extern volatile unsigned long queue_size;
-extern uint32_t queue[];
+extern volatile uint32_t queue[];
 
 #define QUEUE_NEMPTY() ({ queue_size > 0; })
 
@@ -51,6 +57,10 @@ uint32_t read_adc_temp(uint8_t);
 void dac_write(uint32_t);
 uint32_t dac_read(uint8_t);
 */
+
+extern volatile uint32_t temp_values[];
+extern uint16_t temp_thresh;
+extern uint8_t module_id;
 
 void frontend_iic_handler() __attribute__((fast_interrupt));
 

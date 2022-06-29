@@ -6,7 +6,8 @@ module frontend #(
     LINES      = 3,
 
     // 115MHz system clock
-    CLK_PER_TT = 17'd114_998
+    //CLK_PER_TT = 17'd114_998
+    CLK_PER_TT = 17'd99_998
 )(
     output wire config_spi_ncs,
     input wire [3:0] module_id,
@@ -63,7 +64,8 @@ module frontend #(
     wire clk_frontend, clk_frontend_fb;
     PLLE2_BASE #(
         .BANDWIDTH("HIGH"),
-        .CLKIN1_PERIOD(8.696), // 115MHz
+        //.CLKIN1_PERIOD(8.696), // 115MHz
+        .CLKIN1_PERIOD(10.000),
         .CLKFBOUT_MULT(12),
         .CLKOUT0_DIVIDE(3),
         .CLKOUT1_DIVIDE(12)

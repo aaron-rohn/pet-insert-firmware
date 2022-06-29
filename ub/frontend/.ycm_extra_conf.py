@@ -7,6 +7,7 @@ flags = [
     '-Werror',
     '-Wno-long-long',
     '-Wno-variadic-macros',
+    '-Wno-unknown-attributes',
     '-fexceptions',
     '-ferror-limit=10000',
     '-DNDEBUG',
