@@ -101,14 +101,15 @@ void handle_read()
 
         default:
             temp_values[ch] = value;
-            /*
-            if (value > temp_thresh)
+
+            // since we're using an NTC thermistor, the ADC code will go
+            // down as temperature goes up. If the value drops below the
+            // threshold, send a power off request
+            if (value < temp_thresh)
             {
-                // send power off request to backend
                 value = CMD_BUILD(module_id, CMD_RESPONSE, 0);
                 putfslx(value, 0, FSL_DEFAULT);
             }
-            */
             ch = (ch + 1) % ADC_NCH;
             break;
     }

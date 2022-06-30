@@ -14,12 +14,15 @@ int main()
     INTC_ENABLE(0x1);
 
     uint32_t cmd = 0;
+
+    // soft reset the DAC
     cmd = CMD_DAC_BUILD(DAC_RST, 0, 0);
     cmd = CMD_BUILD(module_id, DAC_WRITE, cmd);
     queue_put(cmd);
 
     for (uint8_t i = 0; i < 4; i++)
     {
+        // set trigger threshold to default value 50mV
         cmd = CMD_DAC_BUILD(DAC_WRITE_UPDATE, i, THRESH_DEFAULT);
         cmd = CMD_BUILD(module_id, DAC_WRITE, cmd);
         queue_put(cmd);
