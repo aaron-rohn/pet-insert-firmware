@@ -9,58 +9,20 @@
 #define ADC0_ADDR 			0x48
 #define ADC1_ADDR			0x49
 #define DAC_ADDR            0x4C
-//#define DAC_WRITE_UPDATE	0x30
-//#define DAC_RST	 			0x70
 #define DAC_WRITE_UPDATE	0x3
 #define DAC_RST	 			0x7
-#define THRESH_DEFAULT      0x6B7 // 50mV
-#define TEMP_THRESH_DEFAULT 0x3DC // ~35C
 #define ADC_NCH             8
 
-/*
-#define IIC_SUCCESS     0x0
-#define IIC_ERR_TXERR   0x1
-#define IIC_ERR_RXERR   0x2
+// 50mv, 35C
+#define THRESH_DEFAULT      0x6B7
+#define TEMP_THRESH_DEFAULT 0x3DC
 
-#define IIC_BUF_SET(buf, b0, b1, b2) ({\
-        buf[0] = b0;\
-        buf[1] = b1;\
-        buf[2] = b2; })
-*/
-
-#define QUEUE_SIZE_MAX 32UL
-extern volatile unsigned long queue_size;
-extern volatile uint32_t queue[];
-
-#define QUEUE_NEMPTY() ({ queue_size > 0; })
-
-#define QUEUE_PUT(val) ({ \
-        microblaze_disable_interrupts(); \
-        queue[queue_size] = (val); \
-        queue_size++; \
-        microblaze_enable_interrupts(); \
-})
-
-#define QUEUE_POP() ({ \
-        uint32_t cmd = 0; \
-        microblaze_disable_interrupts(); \
-        queue_size--; \
-        cmd = queue[queue_size]; \
-        microblaze_enable_interrupts(); \
-        cmd; \
-})
-
-/*
-uint8_t iic_write(uint8_t, uint8_t, uint8_t*);
-uint8_t iic_read(uint8_t, uint8_t, uint8_t*, uint8_t, uint8_t*);
-uint32_t read_adc_temp(uint8_t);
-void dac_write(uint32_t);
-uint32_t dac_read(uint8_t);
-*/
+void queue_put(uint32_t);
+uint32_t queue_pop();
 
 extern volatile uint32_t temp_values[];
-extern uint16_t temp_thresh;
-extern uint8_t module_id;
+extern volatile uint16_t temp_thresh;
+extern volatile uint8_t module_id;
 
 void frontend_iic_handler() __attribute__((fast_interrupt));
 

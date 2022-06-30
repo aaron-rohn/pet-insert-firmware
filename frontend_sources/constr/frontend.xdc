@@ -9,7 +9,8 @@ set_property CONFIG_VOLTAGE 2.5 [current_design]
 set_property -dict {IOSTANDARD LVCMOS25 PACKAGE_PIN L12} [get_ports config_spi_ncs]
 
 # 115MHz input clock
-create_clock -period 8.696 [get_ports sys_clk_p]
+#create_clock -period 8.696 [get_ports sys_clk_p]
+create_clock -period 10 [get_ports sys_clk_p]
 
 # Differential signals
 

@@ -4,7 +4,7 @@
 #include "backend_gpio.h"
 
 volatile uint32_t current_values[4] = {0};
-uint32_t current_thresh = 1500;
+volatile uint32_t current_thresh = 1500;
 
 void backend_iic_handler()
 {

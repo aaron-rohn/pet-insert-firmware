@@ -16,7 +16,7 @@
 #define INTC_IMR ((volatile uint32_t*)(INTC_BASE + 0x20))
 #define INTC_ILR ((volatile uint32_t*)(INTC_BASE + 0x24))
 #define INTC_IVAR ((volatile unsigned long*)(INTC_BASE + 0x100))
-#define INTC_REGISTER(handler, num) ({ *(INTC_IVAR+ (num)) = ((unsigned long)(handler)); })
+#define INTC_REGISTER(handler, num) ({ *(INTC_IVAR + (num)) = ((unsigned long)(handler)); })
 
 #define INTC_ENABLE(mask) ({\
         *INTC_IMR  = (mask);\

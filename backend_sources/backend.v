@@ -184,7 +184,6 @@ module backend #(
     assign gpio_i =
         event_counters[module_select][channel_select][0 +: 32];
 
-
     // nets connecting to and from frontend data
 
     wire [CMD_LEN-1:0] ub_m_cmd_data [NMODULES-1:0];

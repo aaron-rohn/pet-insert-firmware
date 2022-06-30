@@ -8,9 +8,6 @@
 #include "backend_gpio.h"
 #include "backend_timer.h"
 
-extern volatile uint32_t current_values[];
-extern uint32_t current_thresh;
-
 int main()
 {
     // Begin initialization

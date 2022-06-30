@@ -8,7 +8,7 @@
  * 4'hF, 4'h{Module}, 4'h{Command}, 20'h{Payload}
  */
 
-typedef enum {
+enum cmd_t {
     RST = 0,
 
     DAC_WRITE,      // frontend, 0x1
@@ -30,7 +30,7 @@ typedef enum {
 
     // indicate that a reply is pending from the frontend
     CMD_RESPONSE = 0xF
-} cmd_t;
+};
 
 // General values
 
@@ -40,7 +40,7 @@ typedef enum {
 #define CMD_MODULE(cmd)         ((cmd >> 24) & 0xF) // full 4 bit module, 0-15
 #define CMD_MODULE_LOWER(cmd)   ((cmd >> 24) & 0x3) // lowest 2 bits, indicating the backend port
 #define CMD_PAYLOAD(cmd)        (cmd & 0xFFFFF)
-#define CMD_BUILD(m,c,p)        ( CMD_EMPTY | ((m & 0xF) << 24) | ((c & 0xF) << 20) | (p & 0xFFFFF) )
+#define CMD_BUILD(m,c,p)        ( CMD_EMPTY | (((m) & 0xF) << 24) | (((c) & 0xF) << 20) | ((p) & 0xFFFFF) )
 #define CMD_SET_PAYLOAD(cmd,pld) ({ cmd &= ~0xFFFFF; cmd |= (pld & 0xFFFFF); })
 
 // DAC values

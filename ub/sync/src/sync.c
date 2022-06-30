@@ -1,14 +1,12 @@
 #include <xparameters.h>
 #include <xil_io.h>
-#include "custom_iic.h"
-#include "custom_command.h"
-#include "custom_spi.h"
-#include "custom_gpio.h"
+#include "command.h"
+#include "spi.h"
+#include "sync_gpio.h"
+#include "sync_iic.h"
 
 #define MODULE_RST_BIT (0x1 << 3)
 #define MODULE_RST_ACK (0x1 << 0)
-
-#define DAC_RST	0x70
 
 int main()
 {

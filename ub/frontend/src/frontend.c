@@ -4,19 +4,25 @@
 #include "frontend_gpio.h"
 #include "frontend_iic.h"
 
-uint8_t module_id;
+volatile uint8_t module_id;
 
 int main()
 {
     module_id = *GPIO0 & 0xF;
     microblaze_enable_interrupts();
-    INTC_REGISTER(frontend_iic_handler, 0x1);
+    INTC_REGISTER(frontend_iic_handler, 0);
     INTC_ENABLE(0x1);
 
-    QUEUE_PUT(CMD_DAC_BUILD(DAC_RST, 0, 0));
+    uint32_t cmd = 0;
+    cmd = CMD_DAC_BUILD(DAC_RST, 0, 0);
+    cmd = CMD_BUILD(module_id, DAC_WRITE, cmd);
+    queue_put(cmd);
+
     for (uint8_t i = 0; i < 4; i++)
     {
-        QUEUE_PUT(CMD_DAC_BUILD(DAC_WRITE_UPDATE, i, THRESH_DEFAULT));
+        cmd = CMD_DAC_BUILD(DAC_WRITE_UPDATE, i, THRESH_DEFAULT);
+        cmd = CMD_BUILD(module_id, DAC_WRITE, cmd);
+        queue_put(cmd);
     }
 
     IIC_INIT(IIC_ISR_DEFAULT);
@@ -31,7 +37,7 @@ int main()
 
         if (!fsl_no_data)
         {
-            cmd_t c = CMD_COMMAND(cmd);
+            enum cmd_t c = CMD_COMMAND(cmd);
             uint32_t value = 0;
             uint8_t channel = 0;
             uint8_t divisor = 0;
@@ -43,10 +49,13 @@ int main()
                     break;
 
                 case DAC_WRITE:
+                    queue_put(cmd);
+                    value = CMD_DAC_VAL(cmd);
+                    break;
+
                 case DAC_READ:
-                    QUEUE_PUT(cmd);
-                    // skip putting a result onto the FSL!
-                    // This will be done by the isr when the iic is complete
+                    queue_put(cmd);
+                    // return value is provided by ISR
                     continue;
 
                 case ADC_READ:
@@ -85,7 +94,8 @@ int main()
                     temp_thresh = cmd & 0xFFFF;
                     break;
 
-                default: break;
+                default:
+                    break;
             }
 
             value = CMD_BUILD(module_id, c, value);
