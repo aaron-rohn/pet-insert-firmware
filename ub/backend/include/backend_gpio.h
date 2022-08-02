@@ -7,12 +7,6 @@
 uint32_t handle_gpio(uint32_t);
 uint32_t handle_counter(uint32_t);
 
-#define GPIO_SET(base, value, mask, offset) ({ \
-        uint32_t scratch = *base; \
-        scratch &= ~(mask << offset); \
-        scratch |= (value << offset); \
-        *base = scratch; })
-
 #define GPIO0 ((volatile uint32_t*)(XPAR_AXI_GPIO_0_BASEADDR + 0x0))
 #define GPIO1 ((volatile uint32_t*)(XPAR_AXI_GPIO_0_BASEADDR + 0x8))
 

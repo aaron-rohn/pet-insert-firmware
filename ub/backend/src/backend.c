@@ -1,10 +1,9 @@
 #include <xparameters.h>
 #include <fsl.h>
-#include <xil_io.h>
 #include "intc.h"
+#include "spi.h"
 #include "command.h"
 #include "backend_iic.h"
-#include "backend_spi.h"
 #include "backend_gpio.h"
 #include "backend_timer.h"
 
@@ -47,7 +46,7 @@ int main()
         }
         else if (IS_CMD(cmd))
         {
-            cmd_t c = CMD_COMMAND(cmd);
+            enum cmd_t c = CMD_COMMAND(cmd);
             uint32_t value = 0;
 
             switch (c)

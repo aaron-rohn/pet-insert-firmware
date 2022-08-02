@@ -291,7 +291,7 @@ module backend #(
 
             .d(m_ctrl[i]));
 
-    end endgenerate
+        end endgenerate
 
     /*
     * Receiver side components

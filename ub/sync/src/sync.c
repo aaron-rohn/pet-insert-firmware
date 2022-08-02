@@ -1,12 +1,8 @@
 #include <xparameters.h>
-#include <xil_io.h>
 #include "command.h"
 #include "spi.h"
 #include "sync_gpio.h"
 #include "sync_iic.h"
-
-#define MODULE_RST_BIT (0x1 << 3)
-#define MODULE_RST_ACK (0x1 << 0)
 
 int main()
 {
@@ -34,7 +30,7 @@ int main()
         }
         else if (IS_CMD(cmd))
 		{
-            cmd_t c = CMD_COMMAND(cmd);
+            enum cmd_t c = CMD_COMMAND(cmd);
             uint32_t value = 0;
 
             switch (c)

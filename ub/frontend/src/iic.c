@@ -36,8 +36,8 @@ uint32_t queue_pop()
 volatile enum cmd_t c = ADC_READ;
 volatile enum iic_state_t state = WRITE;
 volatile uint8_t ch = 0, addr = ADC0_ADDR;
-volatile uint8_t buf[2] = {0,0};
-const unsigned long n = sizeof(buf);
+volatile uint8_t rbuf[2] = {0};
+const unsigned long n = sizeof(rbuf);
 
 void handle_write()
 {
@@ -90,7 +90,7 @@ void handle_write()
 
 void handle_read()
 {
-    uint32_t value = (buf[0] << 4) | (buf[1] >> 4);
+    uint32_t value = (rbuf[0] << 4) | (rbuf[1] >> 4);
 
     switch (c)
     {
@@ -147,8 +147,8 @@ restart:
             if (nbytes != n) goto err;
 
             // verify that conversion is done
-            IIC_RD(buf, n);
-            state = (buf[0] & ADC_CONFIG_OS) ? RD_TOP : WAIT_TOP;
+            IIC_RD(rbuf, n);
+            state = (rbuf[0] & ADC_CONFIG_OS) ? RD_TOP : WAIT_TOP;
             goto restart;
 
         case RD_TOP:
@@ -165,7 +165,7 @@ restart:
 
             if (nbytes != n) goto err;
 
-            IIC_RD(buf, n);
+            IIC_RD(rbuf, n);
             handle_read();
             state = WRITE;
             goto restart;
