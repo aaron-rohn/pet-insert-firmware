@@ -55,9 +55,14 @@ module sync #(
     MMCME2_BASE #(
         .BANDWIDTH("HIGH"),
         .CLKIN1_PERIOD(10),
+        /*
         .CLKFBOUT_MULT_F(20.125),
         .CLKOUT0_DIVIDE_F(8.750),
         .DIVCLK_DIVIDE(2)
+        */
+        .CLKFBOUT_MULT_F(49.5),
+        .CLKOUT0_DIVIDE_F(11),
+        .DIVCLK_DIVIDE(5)
     ) clk_sys_inst (
         .CLKIN1(clk_100),
         .CLKOUT0(sys_clk),

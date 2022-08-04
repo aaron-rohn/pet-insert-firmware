@@ -5,9 +5,8 @@ module frontend #(
     DATA_WIDTH = 128,
     LINES      = 3,
 
-    // 115MHz system clock
-    CLK_PER_TT = 17'd114_998
-    //CLK_PER_TT = 17'd99_998
+    // clock periods between time tags, minus 2
+    CLK_PER_TT = 17'd89_998
 )(
     output wire config_spi_ncs,
     input wire [3:0] module_id,
@@ -20,7 +19,7 @@ module frontend #(
 
     // High speed interface
     
-    // 115MHz input clock from backend
+    // input clock from backend
     input wire sys_clk_p,
     input wire sys_clk_n,
     
@@ -64,8 +63,7 @@ module frontend #(
     wire clk_frontend, clk_frontend_fb;
     PLLE2_BASE #(
         .BANDWIDTH("HIGH"),
-        .CLKIN1_PERIOD(8.696), // 115MHz
-        //.CLKIN1_PERIOD(10.000),
+        .CLKIN1_PERIOD(11.111), // 90MHz
         .CLKFBOUT_MULT(12),
         .CLKOUT0_DIVIDE(3),
         .CLKOUT1_DIVIDE(12)
@@ -79,8 +77,9 @@ module frontend #(
         .PWRDWN(1'b0)
     );
 
+    // TDC = 1 / (sys_clk * 4) / 2
+    // frontend clock is 360MHz -> TDC LSB is 1.389ns
     // frontend clock is 460MHz -> TDC LSB is 1.087ns
-    // 1 / 460e6 / 2
 
     // Control data input
     wire sys_ctrl_ddr, sys_ctrl;
