@@ -32,9 +32,9 @@ module sync #(
     input  wire [2:0] RC,
     output reg [7:0] nRF = {8{1'b1}},
             
-    output reg [7:0] D = 0,
-    output reg nTx = 1,
-    output reg [2:0] TC = 0,
+    output wire [7:0] D,
+    output wire nTx,
+    output reg [2:0] TC = 3'd0,
     input  wire [7:0] nTF,
 
     // master spi ports
@@ -50,6 +50,7 @@ module sync #(
 
     wire clk_100;
     IBUFGDS clk_100_inst (.I(clk_100_p), .IB(clk_100_n), .O(clk_100));
+    assign user_hs_clk = ~clk_100;
 
     wire sys_clk, sys_clk_fb;
     MMCME2_BASE #(
@@ -126,6 +127,9 @@ module sync #(
 
     // UB Inst
 
+    wire [31:0] cmd_in, cmd_out;
+    wire cmd_in_valid, cmd_in_ready, cmd_out_valid;
+
     design_1_wrapper ub_inst (
         .clk(sys_clk),
         .rst(self_soft_rst),
@@ -136,7 +140,74 @@ module sync #(
         .spi_miso(gigex_spi_miso),
         .spi_mosi(gigex_spi_mosi),
         .gpio_rtl_0_tri_o(gpio_o),
-        .gpio_rtl_1_tri_i(gpio_i)
+        .gpio_rtl_1_tri_i(gpio_i),
+
+        .cmd_in_tdata(cmd_in),
+        .cmd_in_tlast(0),
+        .cmd_in_tready(cmd_in_ready),
+        .cmd_in_tvalid(cmd_in_valid),
+
+        .cmd_out_tdata(cmd_out),
+        .cmd_out_tlast(),
+        .cmd_out_tready(1),
+        .cmd_out_tvalid(cmd_out_valid)
     );
+
+    // From gigex to uB
+
+    wire [31:0] cmd_in_flip;
+    generate for (i = 0; i < 32/8; i = i + 1) begin
+        assign cmd_in[(i*8) +: 8] = cmd_in_flip[31-(i*8) -: 8];
+    end endgenerate
+
+    wire eth_rx_empty;
+    assign cmd_in_valid = ~eth_rx_empty;
+
+    xpm_fifo_async #(
+        .FIFO_READ_LATENCY(0),
+        .READ_MODE("fwft"),
+        .FIFO_WRITE_DEPTH(64),
+        .WRITE_DATA_WIDTH(8),
+        .READ_DATA_WIDTH(32),
+        .PROG_FULL_THRESH(32)
+    ) eth_fifo_rx_inst (
+        .rst(1'b0),
+        .din(Q),
+        .wr_en(~nRx),
+        .wr_clk(clk_100),
+        .full(),
+        .dout(cmd_in_flip),
+        .rd_en(cmd_in_valid & cmd_in_ready),
+        .rd_clk(sys_clk),
+        .empty(eth_rx_empty));
+
+    // From uB to gigex
+
+    wire [31:0] cmd_out_flip;
+    generate for (i = 0; i < 32/8; i = i + 1) begin
+        assign cmd_out_flip[(i*8) +: 8] = cmd_out[31-(i*8) -: 8];
+    end endgenerate
+
+    wire eth_tx_emp, eth_tx_ready, eth_tx_valid;
+    assign eth_tx_valid = ~eth_tx_emp;
+    assign nTx = ~(eth_tx_valid & eth_tx_ready);
+    assign eth_tx_ready = nTF[0];
+
+    xpm_fifo_async #(
+        .FIFO_READ_LATENCY(0),
+        .READ_MODE("fwft"),
+        .FIFO_WRITE_DEPTH(16),
+        .WRITE_DATA_WIDTH(32),
+        .READ_DATA_WIDTH(8)
+    ) eth_fifo_cmd_tx_inst (
+        .rst(1'b0),
+        .din(cmd_out_flip),
+        .wr_en(cmd_out_valid),
+        .wr_clk(sys_clk),
+        .full(),
+        .dout(D),
+        .rd_en(~nTx),
+        .rd_clk(clk_100),
+        .empty(eth_tx_emp));
 
 endmodule

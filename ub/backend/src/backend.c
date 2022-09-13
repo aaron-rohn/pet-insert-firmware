@@ -7,6 +7,9 @@
 #include "backend_gpio.h"
 #include "backend_timer.h"
 
+#define CMD_FSL 4
+#define NFRONTEND_FSL 4
+
 int main()
 {
     // Begin initialization
@@ -14,37 +17,25 @@ int main()
     *GPIO0 &= ~GPIO_SOFT_RST;
     *GPIO0 |= (GPIO_STATUS_NET | GPIO_STATUS_FPGA);
     TIMER_INT_CLEAR();
-    SPI_RST();
 
     microblaze_enable_interrupts();
-    INTC_REGISTER(timer_handler, 0);
+    //INTC_REGISTER(timer_handler, 0);
     INTC_REGISTER(backend_iic_handler, 1);
-    INTC_ENABLE(0x3);
+    //INTC_ENABLE(0x3);
+    INTC_ENABLE(0x2);
 
-    TIMER_INIT(TIME_60S);
+    //TIMER_INIT(TIME_ON);
     IIC_INIT(IIC_ISR_DEFAULT);
-    SPI_INIT();
 
     // End initialization
 
 	while(1)
 	{
-        // check for command from workstation
-        uint32_t cmd = 0;
-        if (SPI_RX_VALID())
-        {
-            cmd = SPI_READ();
-            TIMER_INIT(TIME_60S);
-        }
+        uint32_t cmd = 0, invalid = 1;
+        getdfslx(cmd, CMD_FSL, FSL_NONBLOCKING);
+        fsl_isinvalid(invalid);
 
-        // handle commands
-
-        if (cmd == 1)
-        {
-            SPI_RST();
-            SPI_INIT();
-        }
-        else if (IS_CMD(cmd))
+        if (!invalid && IS_CMD(cmd))
         {
             enum cmd_t c = CMD_COMMAND(cmd);
             uint32_t value = 0;
@@ -86,11 +77,11 @@ int main()
                             MODULE_PWR_IS_SET(value));
             }
 
-            SPI_WRITE(cmd);
+            putdfslx(cmd, CMD_FSL, FSL_DEFAULT);
         }
 
         // read FSL from frontend and write to SPI
-        for (uint32_t i = 0; i < XPAR_MICROBLAZE_0_FSL_LINKS; i++)
+        for (uint32_t i = 0; i < NFRONTEND_FSL; i++)
         {
             uint32_t value = 0, invalid = 1;
             getdfslx(value, i, FSL_NONBLOCKING);
@@ -110,7 +101,7 @@ int main()
                 else
                 {
                     // forward frontend response to workstation
-                    SPI_WRITE(value);
+                    putdfslx(value, CMD_FSL, FSL_DEFAULT);
                 }
             }
         }

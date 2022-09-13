@@ -1,4 +1,5 @@
 #include <xparameters.h>
+#include <fsl.h>
 #include "command.h"
 #include "spi.h"
 #include "sync_gpio.h"
@@ -17,6 +18,11 @@ int main()
 
 	while(1)
 	{
+        uint32_t cmd = 0, invalid = 1;
+        getfslx(cmd, 0, FSL_NONBLOCKING);
+        fsl_isinvalid(invalid);
+
+        /*
         uint32_t cmd = 0;
         if (SPI_RX_VALID())
         {
@@ -30,6 +36,10 @@ int main()
         }
         else if (IS_CMD(cmd))
 		{
+        */
+
+        if (!invalid && IS_CMD(cmd))
+        {
             enum cmd_t c = CMD_COMMAND(cmd);
             uint32_t value = 0;
 
@@ -73,7 +83,8 @@ int main()
                     break;
             }
 
-            SPI_WRITE(cmd);
+            //SPI_WRITE(cmd);
+            putfslx(cmd, 0, FSL_DEFAULT);
         }
     }
 

@@ -1,6 +1,9 @@
 `timescale 1ns / 1ps
 
-module testbench();
+module testbench_spi();
+
+    reg sys_clk = 0;
+    always #5.555 sys_clk = ~sys_clk;
 
     reg clk_100 = 0;
     always #5 clk_100 = ~clk_100;
@@ -66,7 +69,7 @@ module testbench();
     reg do_rst = 0;
     reg [3:0] sys_rst_code = 4'b1010, sys_rst_mask = 4'b0111;
     wire sys_rst = sys_rst_code[3];
-    always @ (posedge clk_100) begin
+    always @ (posedge sys_clk) begin
         if (sys_rst_mask[0]) begin
             sys_rst_code <= sys_rst_code << 1;
             sys_rst_mask <= sys_rst_mask >> 1;
@@ -77,15 +80,17 @@ module testbench();
     end
 
     wire [3:0] m_clks_out, m_datas_out;
-    wire [3:0] m_clks_in = {4{clk_100}};
+    wire [3:0] m_clks_in = {4{sys_clk}};
     wire [11:0] m_datas_in = {m3_data, m2_data, m1_data, m0_data};
 
     wire nTx, eth_clk;
     reg nTF = 1;
 
     backend backend_inst (
-        .sys_clk_p(clk_100),
-        .sys_clk_n(~clk_100),
+        .clk_100_p(clk_100),
+        .clk_100_n(~clk_100),
+        .sys_clk_p(sys_clk),
+        .sys_clk_n(~sys_clk),
         .sys_rst_p(sys_rst),
         .sys_rst_n(~sys_rst),
 
@@ -117,16 +122,16 @@ module testbench();
     );
 
     data_tx m0_tx_inst (
-        .clk(clk_100),
+        .clk(sys_clk),
         .rst(0),
         .valid(m0_data_valid),
         .ready(m0_data_ready),
-        .data_in({packet_header, m0_data_in}),
+        .data_in({8{16'hFF00}}), //{packet_header, m0_data_in}),
         .d(m0_data)
     );
     
     data_tx m1_tx_inst (
-        .clk(clk_100),
+        .clk(sys_clk),
         .rst(0),
         .valid(m1_data_valid),
         .ready(m1_data_ready),
@@ -135,7 +140,7 @@ module testbench();
     );
 
     data_tx m2_tx_inst (
-        .clk(clk_100),
+        .clk(sys_clk),
         .rst(0),
         .valid(1'b0),
         .ready(),
@@ -144,7 +149,7 @@ module testbench();
     );
 
     data_tx m3_tx_inst (
-        .clk(clk_100),
+        .clk(sys_clk),
         .rst(0),
         .valid(1'b0),
         .ready(),
@@ -153,10 +158,25 @@ module testbench();
     );
 
     initial begin
+        is_single = 1;
+        is_cmd = 0;
+        m0_data_in = 32'hFFFF_FFFF;
+
         #10_000 @ (negedge sys_rst_mask[0]) do_rst = 1;
-        @ (posedge clk_100) do_rst = 0;
+        @ (posedge sys_clk) do_rst = 0;
         #10_000
 
+        @(posedge sys_clk) m0_data_valid = 1'b1;
+        #100 m0_data_valid = 1'b0;
+
+        @(negedge nTx);
+        @(negedge eth_clk);
+        #50;
+        nTF = 0;
+        #100;
+        nTF = 1;
+
+        /*
         spi_data_in = 32'hF064_04F1;
         spi_query();
         #10_000;
@@ -166,13 +186,14 @@ module testbench();
         #10_000;
 
         m0_data_in = 32'hF130_ABCD;
-        @(posedge clk_100) m0_data_valid = 1'b1;
+        @(posedge sys_clk) m0_data_valid = 1'b1;
         #100 m0_data_valid = 1'b0;
 
         #10_000;
 
         spi_data_in = 0;
         spi();
+        */
 
         #10_000;
         $stop;

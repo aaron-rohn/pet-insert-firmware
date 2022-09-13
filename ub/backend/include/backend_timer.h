@@ -49,6 +49,9 @@
 #define TIME_10S ((uint64_t)1000000000)
 #define TIME_1S  ((uint64_t)100000000)
 
+#define TIME_ON  TIME_30S
+#define TIME_OFF TIME_10S
+
 void timer_handler() __attribute__((fast_interrupt));
 
 #endif

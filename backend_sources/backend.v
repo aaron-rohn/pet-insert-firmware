@@ -45,15 +45,15 @@ module backend #(
     
     output wire user_hs_clk,
     
-    input  wire [7:0] Q,        // Rx data from gigex
-    input  wire nRx,            // Rx data valid from gigex, active low
-    input  wire [2:0] RC,       // Rx data channel from gigex
-    output reg [7:0] nRF = 0,   // Rx fifo full flag to gigex, active low
+    input  wire [7:0] Q,    // Rx data from gigex
+    input  wire nRx,        // Rx data valid from gigex, active low
+    input  wire [2:0] RC,   // Rx data channel from gigex
+    output wire [7:0] nRF,  // Rx fifo full flag to gigex, active low
             
-    output wire [7:0] D,        // Tx data to gigex
-    output wire nTx,            // Tx data valid to gigex
-    output reg [2:0] TC = 0,    // Tx data channel to gigex
-    input  wire [7:0] nTF,      // Tx fifo full flag from gigex
+    output wire [7:0] D,    // Tx data to gigex
+    output wire nTx,        // Tx data valid to gigex
+    output wire [2:0] TC,   // Tx data channel to gigex
+    input  wire [7:0] nTF,  // Tx fifo full flag from gigex
 
     // master spi ports
     input wire gigex_spi_cs,
@@ -81,20 +81,7 @@ module backend #(
     IDDR #(.DDR_CLK_EDGE("SAME_EDGE")) sys_rst_iddr_inst (
         .Q1(), .Q2(sys_rst), .D(sys_rst_ddr), .C(sys_clk), .CE(1'b1), .S(), .R(1'b0));
 
-    // create 125MHz ethernet clock
-    wire clk_100_fb;
-    PLLE2_BASE #(
-        .CLKIN1_PERIOD(10),
-        .CLKFBOUT_MULT(10),
-        .CLKOUT0_DIVIDE(8)
-    ) user_hs_clk_inst (
-        .CLKIN1(clk_100),
-        .CLKFBIN(clk_100_fb),
-        .CLKFBOUT(clk_100_fb),
-        .CLKOUT0(user_hs_clk),
-        .RST(1'b0),
-        .PWRDWN(1'b0)
-    );
+    assign user_hs_clk = ~clk_100;
 
     // Input and output connections to frontend modules
     wire [NMODULES-1:0] m_clk_ddr, m_ctrl_ddr, m_ctrl, m_data_clk;
@@ -190,6 +177,11 @@ module backend #(
     wire [CMD_LEN-1:0] m_ub_cmd_data [NMODULES-1:0];
     wire [NMODULES-1:0] m_ub_cmd_valid, ub_m_cmd_valid, m_ub_cmd_ready, ub_m_cmd_ready;
 
+    // command data and control signals
+    wire [CMD_LEN-1:0] cmd_in, cmd_out;
+    wire cmd_in_ready, cmd_in_valid;
+    wire cmd_out_ready, cmd_out_valid;
+
     // instantiate microblaze
 
     low_speed_interface_wrapper low_speed_inst (
@@ -249,7 +241,18 @@ module backend #(
         .m3_out_tdata(ub_m_cmd_data[3]),
         .m3_out_tlast(),
         .m3_out_tready(ub_m_cmd_ready[3]),
-        .m3_out_tvalid(ub_m_cmd_valid[3])
+        .m3_out_tvalid(ub_m_cmd_valid[3]),
+
+        // Commands
+        .cmd_in_tdata(cmd_in),
+        .cmd_in_tlast(0),
+        .cmd_in_tready(cmd_in_ready),
+        .cmd_in_tvalid(cmd_in_valid),
+
+        .cmd_out_tdata(cmd_out),
+        .cmd_out_tlast(),
+        .cmd_out_tready(cmd_out_ready),
+        .cmd_out_tvalid(cmd_out_valid)
     );
 
     /*
@@ -386,46 +389,24 @@ module backend #(
 
     end endgenerate
 
-    /*
-    * Ethernet tx interface
-    */
-
-    // Flip byte ordering so that MSB is sent first
-    wire [LENGTH-1:0] m_data_flip;
-    generate for (i = 0; i < 128/8; i = i + 1) begin
-        assign m_data_flip[(i*8) +: 8] = m_data[127-(i*8) -: 8];
-    end endgenerate
-
-    wire rx_full;
-    assign m_ready = ~rx_full;
-    wire valid, ready, rx_emp;
-
-    xpm_fifo_async #(
-        .FIFO_READ_LATENCY(0),
-        .READ_MODE("fwft"),
-        .FIFO_WRITE_DEPTH(16),
-        .WRITE_DATA_WIDTH(128),
-        .READ_DATA_WIDTH(8)
-    ) eth_fifo_inst (
-        .rst(1'b0),
-        .din(m_data_flip),
-        .wr_en(m_ready & m_valid),
-        .wr_clk(sys_clk),
-        .full(rx_full),
-        .dout(D),
-        .rd_en(~nTx),
-        .rd_clk(~user_hs_clk),
-        .empty(rx_emp));
-
-    reg nTF1 = 0, nTF2 = 0;
-    assign ready = nTF | nTF2;
-    assign valid = ~rx_emp;
-    assign nTx = ~(valid & ready);
-
-    // nTx can be asserted for 2 clocks after nTF falls
-    always @ (negedge user_hs_clk) begin
-        nTF1 <= nTF[0];
-        nTF2 <= nTF1;
-    end
+    gigex gigex_inst (
+        .sys_clk(sys_clk),
+        .eth_clk(clk_100),
+ 
+        .m_data(m_data),
+        .m_valid(m_valid),
+        .m_ready(m_ready),
+ 
+        .cmd_out(cmd_out),
+        .cmd_out_valid(cmd_out_valid),
+        .cmd_out_ready(cmd_out_ready),
+ 
+        .cmd_in(cmd_in),
+        .cmd_in_valid(cmd_in_valid),
+        .cmd_in_ready(cmd_in_ready),
+ 
+        .Q(Q), .nRx(nRx), .RC(RC), .nRF(nRF),
+        .D(D), .nTx(nTx), .TC(TC), .nTF(nTF)
+    );
 
 endmodule
