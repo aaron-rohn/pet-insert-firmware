@@ -1,14 +1,11 @@
 #include <xparameters.h>
-#include <fsl.h>
 #include "intc.h"
 #include "spi.h"
 #include "command.h"
 #include "backend_iic.h"
 #include "backend_gpio.h"
 #include "backend_timer.h"
-
-#define CMD_FSL 4
-#define NFRONTEND_FSL 4
+#include "backend_fsl.h"
 
 int main()
 {
@@ -97,6 +94,8 @@ int main()
                 {
                     // power off the specified module
                     MODULE_CLR_PWR(i);
+                    // notify the info gigex channel
+                    putdfslx(value, INFO_FSL, FSL_DEFAULT);
                 }
                 else
                 {

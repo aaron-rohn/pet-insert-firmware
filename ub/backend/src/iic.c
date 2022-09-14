@@ -2,6 +2,7 @@
 #include "command.h"
 #include "backend_iic.h"
 #include "backend_gpio.h"
+#include "backend_fsl.h"
 
 volatile uint32_t current_values[4] = {0};
 volatile uint32_t current_thresh = 2000;
@@ -14,6 +15,7 @@ void backend_iic_handler()
     static uint8_t buf[2] = {0,0};
     static const unsigned long n = sizeof(buf);
 
+    uint32_t value = 0;
     uint32_t status = *IIC_SR;
     uint32_t tx_empty = (status & IIC_SR_txfifoemp);
     uint32_t rx_empty = (status & IIC_SR_rxfifoemp);
@@ -80,6 +82,10 @@ restart:
             {
                 // shut off module due to over-current
                 MODULE_CLR_PWR(ch);
+
+                // notify gigex info channel
+                value = CMD_BUILD(ch, GET_CURRENT, current_values[ch]);
+                putdfslx(value, INFO_FSL, FSL_DEFAULT);
             }
 
             ch = (ch + 1) % 4;

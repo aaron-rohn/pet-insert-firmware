@@ -5,9 +5,9 @@ module gigex (
     input wire eth_clk,
 
     // data from the system
-    input wire [127:0] m_data,
-    input wire m_valid,
-    output wire m_ready,
+    input wire [127:0] data_out,
+    input wire data_out_valid,
+    output wire data_out_ready,
 
     // commands from the system
     input wire [31:0] cmd_out,
@@ -19,6 +19,11 @@ module gigex (
     output wire cmd_in_valid,
     input wire cmd_in_ready,
 
+    // async info from the system
+    input wire [31:0] info_out,
+    input wire info_out_valid,
+    output wire info_out_ready,
+
     // gigex ports
 
     input  wire [7:0] Q,    // Rx data from gigex
@@ -26,18 +31,18 @@ module gigex (
     input  wire [2:0] RC,   // Rx data channel from gigex
     output wire [7:0] nRF,  // Rx fifo full flag to gigex, active low
  
-    output wire [7:0] D,    // Tx data to gigex
+    output reg [7:0] D,     // Tx data to gigex
     output wire nTx,        // Tx data valid to gigex
-    output wire [2:0] TC,   // Tx data channel to gigex
+    output reg [2:0] TC,    // Tx data channel to gigex
     input  wire [7:0] nTF   // Tx fifo full flag from gigex
 );
 
     genvar i;
 
     // Flip byte ordering so that MSB is sent first
-    wire [127:0] m_data_flip;
+    wire [127:0] data_out_flip;
     generate for (i = 0; i < 128/8; i = i + 1) begin
-        assign m_data_flip[(i*8) +: 8] = m_data[127-(i*8) -: 8];
+        assign data_out_flip[(i*8) +: 8] = data_out[127-(i*8) -: 8];
     end endgenerate
 
     wire [31:0] cmd_out_flip;
@@ -45,12 +50,22 @@ module gigex (
         assign cmd_out_flip[(i*8) +: 8] = cmd_out[31-(i*8) -: 8];
     end endgenerate
 
-    wire data_full, data_emp, cmd_full, cmd_emp, cmd_read, data_read;
-    wire [7:0] gigex_data, gigex_cmd;
-    assign m_ready = ~data_full;
+    wire [31:0] info_out_flip;
+    generate for (i = 0; i < 32/8; i = i + 1) begin
+        assign info_out_flip[(i*8) +: 8] = info_out[31-(i*8) -: 8];
+    end endgenerate
+
+    wire data_full, data_emp, data_read;
+    wire cmd_full, cmd_emp, cmd_read;
+    wire info_full, info_emp, info_read;
+
+    wire [7:0] gigex_data, gigex_cmd, gigex_info;
+    assign data_out_ready = ~data_full;
     assign cmd_out_ready = ~cmd_full;
+    assign info_out_ready = ~info_full;
     wire data_valid = ~data_emp;
     wire cmd_valid  = ~cmd_emp;
+    wire info_valid = ~info_emp;
 
     xpm_fifo_async #(
         .FIFO_READ_LATENCY(0),
@@ -60,8 +75,8 @@ module gigex (
         .READ_DATA_WIDTH(8)
     ) eth_fifo_data_tx_inst (
         .rst(1'b0),
-        .din(m_data_flip),
-        .wr_en(m_ready & m_valid),
+        .din(data_out_flip),
+        .wr_en(data_out_ready & data_out_valid),
         .wr_clk(sys_clk),
         .full(data_full),
         .dout(gigex_data),
@@ -86,21 +101,53 @@ module gigex (
         .rd_clk(eth_clk),
         .empty(cmd_emp));
 
+    xpm_fifo_async #(
+        .FIFO_READ_LATENCY(0),
+        .READ_MODE("fwft"),
+        .FIFO_WRITE_DEPTH(16),
+        .WRITE_DATA_WIDTH(32),
+        .READ_DATA_WIDTH(8)
+    ) eth_fifo_info_tx_inst (
+        .rst(1'b0),
+        .din(info_out_flip),
+        .wr_en(info_out_ready & info_out_valid),
+        .wr_clk(sys_clk),
+        .full(info_full),
+        .dout(gigex_info),
+        .rd_en(info_read),
+        .rd_clk(eth_clk),
+        .empty(info_emp));
+
     // delay the nTF signals according to the data sheet
     reg [7:0] nTF1 = 0, nTF2 = 0, nTF3 = 0;
+    wire [7:0] chn_ready = nTF2 | nTF3;
     always @ (posedge eth_clk) begin
         nTF1 <= nTF;
         nTF2 <= nTF1;
         nTF3 <= nTF2;
     end
-    wire cmd_ready  = nTF2[1] | nTF3[1];
-    wire data_ready = nTF2[0] | nTF3[0];
 
-    assign cmd_read  = cmd_ready  & cmd_valid;
-    assign data_read = data_ready & data_valid & ~cmd_read;
-    assign D  = cmd_read ? gigex_cmd : gigex_data;
-    assign TC = cmd_read ? 3'd1 : 3'd0;
-    assign nTx = ~(cmd_read | data_read);
+    wire info_ready = chn_ready[2];
+    wire cmd_ready  = chn_ready[1];
+    wire data_ready = chn_ready[0];
+
+    assign info_read = info_ready & info_valid;
+    assign cmd_read  = cmd_ready  & cmd_valid  & ~(info_read);
+    assign data_read = data_ready & data_valid & ~(info_read | cmd_read);
+    assign nTx = ~(info_read | cmd_read | data_read);
+
+    always @(*) begin
+        if (info_read) begin
+            TC = 3'd2;
+            D  = gigex_info;
+        end else if (cmd_read) begin
+            TC = 3'd1;
+            D  = gigex_cmd;
+        end else begin
+            TC = 3'd0;
+            D  = gigex_data;
+        end
+    end
 
     // receive data from gigex
     wire [31:0] cmd_in_flip;

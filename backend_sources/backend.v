@@ -193,9 +193,10 @@ module backend #(
     wire [NMODULES-1:0] m_ub_cmd_valid, ub_m_cmd_valid, m_ub_cmd_ready, ub_m_cmd_ready;
 
     // command data and control signals
-    wire [CMD_LEN-1:0] cmd_in, cmd_out;
+    wire [CMD_LEN-1:0] cmd_in, cmd_out, info_out;
     wire cmd_in_ready, cmd_in_valid;
     wire cmd_out_ready, cmd_out_valid;
+    wire info_out_ready, info_out_valid;
 
     // instantiate microblaze
 
@@ -258,7 +259,7 @@ module backend #(
         .m3_out_tready(ub_m_cmd_ready[3]),
         .m3_out_tvalid(ub_m_cmd_valid[3]),
 
-        // Commands
+        // Commands between workstation and system
         .cmd_in_tdata(cmd_in),
         .cmd_in_tlast(0),
         .cmd_in_tready(cmd_in_ready),
@@ -267,7 +268,18 @@ module backend #(
         .cmd_out_tdata(cmd_out),
         .cmd_out_tlast(),
         .cmd_out_tready(cmd_out_ready),
-        .cmd_out_tvalid(cmd_out_valid)
+        .cmd_out_tvalid(cmd_out_valid),
+
+        // Async information from system
+        .info_in_tdata(0),
+        .info_in_tlast(0),
+        .info_in_tready(),
+        .info_in_tvalid(0),
+
+        .info_out_tdata(info_out),
+        .info_out_tlast(),
+        .info_out_tready(info_out_ready),
+        .info_out_tvalid(info_out_valid)
     );
 
     /*
@@ -408,9 +420,9 @@ module backend #(
         .sys_clk(sys_clk),
         .eth_clk(eth_clk),
  
-        .m_data(m_data),
-        .m_valid(m_valid),
-        .m_ready(m_ready),
+        .data_out(m_data),
+        .data_out_valid(m_valid),
+        .data_out_ready(m_ready),
  
         .cmd_out(cmd_out),
         .cmd_out_valid(cmd_out_valid),
@@ -419,6 +431,10 @@ module backend #(
         .cmd_in(cmd_in),
         .cmd_in_valid(cmd_in_valid),
         .cmd_in_ready(cmd_in_ready),
+
+        .info_out(info_out),
+        .info_out_valid(info_out_valid),
+        .info_out_ready(info_out_ready),
  
         .Q(Q), .nRx(nRx), .RC(RC), .nRF(nRF),
         .D(D), .nTx(nTx), .TC(TC), .nTF(nTF)

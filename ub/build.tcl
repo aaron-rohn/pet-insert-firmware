@@ -35,13 +35,13 @@ proc build { ws_path src_path inc_path } {
     projects -build
 }
 
-build /home/aaron/insert/ub/sync \
-      {/home/aaron/insert/src/ub/sync/src} \
-      {/home/aaron/insert/src/ub/include /home/aaron/insert/src/ub/sync/include}
+#build /home/aaron/insert/ub/sync \
+#      {/home/aaron/insert/src/ub/sync/src} \
+#      {/home/aaron/insert/src/ub/include /home/aaron/insert/src/ub/sync/include}
 
-#build /home/aaron/insert/ub/backend \
-#      {/home/aaron/insert/src/ub/backend/src} \
-#      {/home/aaron/insert/src/ub/include /home/aaron/insert/src/ub/backend/include}
+build /home/aaron/insert/ub/backend \
+      {/home/aaron/insert/src/ub/backend/src} \
+      {/home/aaron/insert/src/ub/include /home/aaron/insert/src/ub/backend/include}
 
 #build /home/aaron/insert/ub/frontend \
 #      {/home/aaron/insert/src/ub/frontend/src} \
