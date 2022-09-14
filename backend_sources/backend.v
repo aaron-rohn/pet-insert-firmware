@@ -81,7 +81,22 @@ module backend #(
     IDDR #(.DDR_CLK_EDGE("SAME_EDGE")) sys_rst_iddr_inst (
         .Q1(), .Q2(sys_rst), .D(sys_rst_ddr), .C(sys_clk), .CE(1'b1), .S(), .R(1'b0));
 
-    assign user_hs_clk = ~clk_100;
+    wire eth_clk, eth_clk_fb;
+    MMCME2_BASE #(
+        .BANDWIDTH("HIGH"),
+        .CLKIN1_PERIOD(10),
+        .CLKFBOUT_MULT_F(10),
+        .CLKOUT0_DIVIDE_F(8),
+        .DIVCLK_DIVIDE(1)
+    ) clk_sys_inst (
+        .CLKIN1(clk_100),
+        .CLKOUT0(eth_clk),
+        .CLKFBIN(eth_clk_fb),
+        .CLKFBOUT(eth_clk_fb),
+        .RST(1'b0), .PWRDWN(1'b0)
+    );
+
+    assign user_hs_clk = ~eth_clk;
 
     // Input and output connections to frontend modules
     wire [NMODULES-1:0] m_clk_ddr, m_ctrl_ddr, m_ctrl, m_data_clk;
@@ -391,7 +406,7 @@ module backend #(
 
     gigex gigex_inst (
         .sys_clk(sys_clk),
-        .eth_clk(clk_100),
+        .eth_clk(eth_clk),
  
         .m_data(m_data),
         .m_valid(m_valid),

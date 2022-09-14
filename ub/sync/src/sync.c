@@ -13,30 +13,11 @@ int main()
 
     *GPIO0 |= GPIO_STATUS_FPGA;
 
-    SPI_RST();
-    SPI_INIT();
-
 	while(1)
 	{
         uint32_t cmd = 0, invalid = 1;
         getfslx(cmd, 0, FSL_NONBLOCKING);
         fsl_isinvalid(invalid);
-
-        /*
-        uint32_t cmd = 0;
-        if (SPI_RX_VALID())
-        {
-            cmd = SPI_READ();
-        }
-
-        if (cmd == 1)
-        {
-            SPI_RST();
-            SPI_INIT();
-        }
-        else if (IS_CMD(cmd))
-		{
-        */
 
         if (!invalid && IS_CMD(cmd))
         {
@@ -83,7 +64,6 @@ int main()
                     break;
             }
 
-            //SPI_WRITE(cmd);
             putfslx(cmd, 0, FSL_DEFAULT);
         }
     }

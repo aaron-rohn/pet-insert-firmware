@@ -80,7 +80,7 @@ int main()
             putdfslx(cmd, CMD_FSL, FSL_DEFAULT);
         }
 
-        // read FSL from frontend and write to SPI
+        // read FSL from frontend and write to workstation
         for (uint32_t i = 0; i < NFRONTEND_FSL; i++)
         {
             uint32_t value = 0, invalid = 1;
