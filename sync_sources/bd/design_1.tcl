@@ -283,6 +283,23 @@ proc create_root_design { parentCell } {
 
 
   # Create interface ports
+  set cmd_in [ create_bd_intf_port -mode Slave -vlnv xilinx.com:interface:axis_rtl:1.0 cmd_in ]
+  set_property -dict [ list \
+   CONFIG.FREQ_HZ {90000000} \
+   CONFIG.HAS_TKEEP {0} \
+   CONFIG.HAS_TLAST {1} \
+   CONFIG.HAS_TREADY {1} \
+   CONFIG.HAS_TSTRB {0} \
+   CONFIG.LAYERED_METADATA {undef} \
+   CONFIG.TDATA_NUM_BYTES {4} \
+   CONFIG.TDEST_WIDTH {0} \
+   CONFIG.TID_WIDTH {0} \
+   CONFIG.TUSER_WIDTH {0} \
+   ] $cmd_in
+  set cmd_out [ create_bd_intf_port -mode Master -vlnv xilinx.com:interface:axis_rtl:1.0 cmd_out ]
+  set_property -dict [ list \
+   CONFIG.FREQ_HZ {90000000} \
+   ] $cmd_out
   set gpio_rtl_0 [ create_bd_intf_port -mode Master -vlnv xilinx.com:interface:gpio_rtl:1.0 gpio_rtl_0 ]
   set gpio_rtl_1 [ create_bd_intf_port -mode Master -vlnv xilinx.com:interface:gpio_rtl:1.0 gpio_rtl_1 ]
   set iic_rtl_0 [ create_bd_intf_port -mode Master -vlnv xilinx.com:interface:iic_rtl:1.0 iic_rtl_0 ]
@@ -290,7 +307,7 @@ proc create_root_design { parentCell } {
   # Create ports
   set clk [ create_bd_port -dir I -type clk clk ]
   set_property -dict [ list \
-   CONFIG.FREQ_HZ {100000000} \
+   CONFIG.FREQ_HZ {90000000} \
  ] $clk
   set rst [ create_bd_port -dir I -type rst rst ]
   set_property -dict [ list \
@@ -316,12 +333,12 @@ proc create_root_design { parentCell } {
   # Create instance: axi_quad_spi_0, and set properties
   set axi_quad_spi_0 [ create_bd_cell -type ip -vlnv xilinx.com:ip:axi_quad_spi:3.2 axi_quad_spi_0 ]
   set_property -dict [ list \
-   CONFIG.C_FIFO_DEPTH {0} \
+   CONFIG.C_FIFO_DEPTH {16} \
    CONFIG.C_NUM_TRANSFER_BITS {32} \
-   CONFIG.C_SCK_RATIO {4} \
+   CONFIG.C_SCK_RATIO {8} \
    CONFIG.C_USE_STARTUP {0} \
    CONFIG.C_USE_STARTUP_INT {0} \
-   CONFIG.FIFO_INCLUDED {0} \
+   CONFIG.FIFO_INCLUDED {1} \
    CONFIG.Master_mode {0} \
  ] $axi_quad_spi_0
 
@@ -338,6 +355,7 @@ proc create_root_design { parentCell } {
    CONFIG.C_DEBUG_ENABLED {1} \
    CONFIG.C_D_AXI {1} \
    CONFIG.C_D_LMB {1} \
+   CONFIG.C_FSL_LINKS {1} \
    CONFIG.C_I_LMB {1} \
    CONFIG.C_USE_DCACHE {0} \
    CONFIG.C_USE_ICACHE {0} \
@@ -360,6 +378,8 @@ proc create_root_design { parentCell } {
   connect_bd_intf_net -intf_net axi_gpio_0_GPIO [get_bd_intf_ports gpio_rtl_0] [get_bd_intf_pins axi_gpio_0/GPIO]
   connect_bd_intf_net -intf_net axi_gpio_0_GPIO2 [get_bd_intf_ports gpio_rtl_1] [get_bd_intf_pins axi_gpio_0/GPIO2]
   connect_bd_intf_net -intf_net axi_iic_0_IIC [get_bd_intf_ports iic_rtl_0] [get_bd_intf_pins axi_iic_0/IIC]
+  connect_bd_intf_net -intf_net cmd_in_1 [get_bd_intf_ports cmd_in] [get_bd_intf_pins microblaze_0/S0_AXIS]
+  connect_bd_intf_net -intf_net microblaze_0_M0_AXIS [get_bd_intf_ports cmd_out] [get_bd_intf_pins microblaze_0/M0_AXIS]
   connect_bd_intf_net -intf_net microblaze_0_axi_dp [get_bd_intf_pins microblaze_0/M_AXI_DP] [get_bd_intf_pins microblaze_0_axi_periph/S00_AXI]
   connect_bd_intf_net -intf_net microblaze_0_axi_periph_M00_AXI [get_bd_intf_pins axi_quad_spi_0/AXI_LITE] [get_bd_intf_pins microblaze_0_axi_periph/M00_AXI]
   connect_bd_intf_net -intf_net microblaze_0_axi_periph_M01_AXI [get_bd_intf_pins axi_gpio_0/S_AXI] [get_bd_intf_pins microblaze_0_axi_periph/M01_AXI]

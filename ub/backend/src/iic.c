@@ -5,7 +5,7 @@
 #include "backend_fsl.h"
 
 volatile uint32_t current_values[4] = {0};
-volatile uint32_t current_thresh = 2000;
+volatile uint32_t current_thresh = 1500;
 
 void backend_iic_handler()
 {
@@ -81,7 +81,7 @@ restart:
             if (current_values[ch] > current_thresh)
             {
                 // shut off module due to over-current
-                MODULE_CLR_PWR(ch);
+                if (enable_ocp) MODULE_CLR_PWR(ch);
 
                 // notify gigex info channel
                 value = CMD_BUILD(ch, GET_CURRENT, current_values[ch]);

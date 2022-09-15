@@ -288,6 +288,7 @@ proc create_root_design { parentCell } {
   set iic_rtl_0 [ create_bd_intf_port -mode Master -vlnv xilinx.com:interface:iic_rtl:1.0 iic_rtl_0 ]
   set rxd [ create_bd_intf_port -mode Slave -vlnv xilinx.com:interface:axis_rtl:1.0 rxd ]
   set_property -dict [ list \
+   CONFIG.FREQ_HZ {90000000} \
    CONFIG.HAS_TKEEP {0} \
    CONFIG.HAS_TLAST {0} \
    CONFIG.HAS_TREADY {1} \
@@ -299,12 +300,15 @@ proc create_root_design { parentCell } {
    CONFIG.TUSER_WIDTH {0} \
    ] $rxd
   set txd [ create_bd_intf_port -mode Master -vlnv xilinx.com:interface:axis_rtl:1.0 txd ]
+  set_property -dict [ list \
+   CONFIG.FREQ_HZ {90000000} \
+   ] $txd
 
   # Create ports
   set Clk [ create_bd_port -dir I -type clk Clk ]
   set_property -dict [ list \
    CONFIG.ASSOCIATED_BUSIF {txd:rxd} \
-   CONFIG.FREQ_HZ {100000000} \
+   CONFIG.FREQ_HZ {90000000} \
  ] $Clk
   set rst [ create_bd_port -dir I -type rst rst ]
   set_property -dict [ list \
@@ -344,8 +348,8 @@ proc create_root_design { parentCell } {
    CONFIG.C_HAS_IPR {0} \
    CONFIG.C_HAS_IVR {0} \
    CONFIG.C_HAS_SIE {0} \
-   CONFIG.C_PROCESSOR_CLK_FREQ_MHZ {100} \
-   CONFIG.C_S_AXI_ACLK_FREQ_MHZ {100} \
+   CONFIG.C_PROCESSOR_CLK_FREQ_MHZ {115} \
+   CONFIG.C_S_AXI_ACLK_FREQ_MHZ {115} \
  ] $axi_intc_0
 
   # Create instance: mdm_1, and set properties

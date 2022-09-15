@@ -8,6 +8,7 @@
 
 extern volatile uint32_t current_values[];
 extern volatile uint32_t current_thresh;
+extern volatile uint8_t enable_ocp;
 
 void backend_iic_handler() __attribute__((fast_interrupt));
 

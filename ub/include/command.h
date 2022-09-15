@@ -94,7 +94,7 @@ enum cmd_t {
 
 #define SEL_COUNTER(cmd) (cmd & 0x3)
 
-#define UPDATE_REG_BACKEND(cmd) ((cmd >> 16) == 0)
-#define UPDATE_REG_FRONTEND(cmd) ((cmd >> 16) != 0)
+#define UPDATE_REG_BACKEND(cmd) ((CMD_PAYLOAD(cmd) >> 16) == 0)
+#define UPDATE_REG_FRONTEND(cmd) ((CMD_PAYLOAD(cmd) >> 16) != 0)
 
 #endif

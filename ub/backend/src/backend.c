@@ -7,6 +7,9 @@
 #include "backend_timer.h"
 #include "backend_fsl.h"
 
+volatile uint8_t enable_ocp = 1;
+volatile uint8_t enable_otp = 1;
+
 int main()
 {
     // Begin initialization
@@ -58,8 +61,11 @@ int main()
                 case UPDATE_REG:
                     if (UPDATE_REG_BACKEND(cmd)) {
                         value = current_thresh;
-                        current_thresh = cmd & 0xFFFF;
-                        CMD_SET_PAYLOAD(cmd, value);
+                        current_thresh = cmd & 0xFFF;
+                        enable_ocp = (cmd >> 12) & 0x1;
+                        enable_otp = (cmd >> 13) & 0x1;
+                        CMD_SET_PAYLOAD(cmd,
+                                (enable_otp << 13) | (enable_ocp << 12) | value);
                         break;
                     };
                     // else fall through
@@ -87,13 +93,13 @@ int main()
             // Only send responses to the workstation if the
             // power should be on. Sometimes some invalid data
             // is generated when powering off the module
-            if (!invalid && MODULE_PWR_IS_SET(i))
+            if (!invalid && MODULE_PWR_IS_SET(i) && IS_CMD(value))
             {
                 // frontend module indicates over-temperature
                 if (CMD_COMMAND(value) == CMD_RESPONSE)
                 {
                     // power off the specified module
-                    MODULE_CLR_PWR(i);
+                    if (enable_otp) MODULE_CLR_PWR(i);
                     // notify the info gigex channel
                     putdfslx(value, INFO_FSL, FSL_DEFAULT);
                 }
