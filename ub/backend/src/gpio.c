@@ -31,6 +31,7 @@ uint32_t handle_counter(uint32_t cmd)
 {
     uint8_t module = CMD_MODULE_LOWER(cmd);
     uint8_t channel = SEL_COUNTER(cmd);
+    uint8_t divisor = COUNTER_DIVISOR(cmd);
 
     uint32_t value = *GPIO0;
 
@@ -49,7 +50,7 @@ uint32_t handle_counter(uint32_t cmd)
     *GPIO0 = value | (channel_load_mask << 12);
     *GPIO0 = value;
 
-    CMD_SET_PAYLOAD(cmd, counter_val);
+    CMD_SET_PAYLOAD(cmd, counter_val >> divisor);
 
     return cmd;
 }

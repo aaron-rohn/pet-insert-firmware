@@ -88,11 +88,13 @@ enum cmd_t {
 
 /*
  * Counter_read
- * 18 bits: X
+ * 14 bits: X
+ * 4  bits: counter divisor
  * 2  bits: counter select
  */
 
 #define SEL_COUNTER(cmd) (cmd & 0x3)
+#define COUNTER_DIVISOR(cmd) ((cmd >> 2) & 0xF)
 
 #define UPDATE_REG_BACKEND(cmd) ((CMD_PAYLOAD(cmd) >> 16) == 0)
 #define UPDATE_REG_FRONTEND(cmd) ((CMD_PAYLOAD(cmd) >> 16) != 0)
